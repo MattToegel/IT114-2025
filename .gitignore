@@ -34,3 +34,4 @@ config.*
 *.log*
 .DS_Store
 .vscode
+.idea
