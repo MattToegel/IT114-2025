@@ -23,7 +23,7 @@ local.properties
 *.war
 *.ear
 *.nar
-hs_err_pid*
+hs_err_pid* 
 
 #############################
 ## Class Specifics
