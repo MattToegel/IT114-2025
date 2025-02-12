@@ -29,7 +29,7 @@ public class Problem1 extends BaseClass {
         printOdds(array2,2);
         printOdds(array3,3);
         printOdds(array4,4);
-        printFooter(ucid, 2);
+        printFooter(ucid, 1);
         
     }
 }
