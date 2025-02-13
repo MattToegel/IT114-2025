@@ -15,6 +15,11 @@ public class Problem1 extends BaseClass {
         // Step 3: Add code to solve the problem (add/commit as needed)
         System.out.print("Output Array: ");
         // Start Solution Edits
+
+        // Step 1: iterate over arr
+        
+        // Step 2: check if value is odd
+        // Step 3: print value
         
 
         // End Solution Edits
