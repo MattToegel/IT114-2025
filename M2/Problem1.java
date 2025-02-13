@@ -17,7 +17,6 @@ public class Problem1 extends BaseClass {
         // Start Solution Edits
 
         // Step 1: iterate over arr
-        
         // Step 2: check if value is odd
         // Step 3: print value
         

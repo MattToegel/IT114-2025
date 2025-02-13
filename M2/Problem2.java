@@ -21,6 +21,10 @@ public class Problem2 extends BaseClass {
         double total = 0;
         // Start Solution Edits
         // Solve Challenge 1 here
+
+        // step 1
+        // step 2
+        // step 3
         
       
         // Solve Challenge 2 here
