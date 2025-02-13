@@ -18,26 +18,31 @@ public class Problem4 extends BaseClass {
         // Challenge 2: Convert text to Title Case
         // Challenge 3: Trim leading/trailing spaces and remove duplicate spaces
         // Result 1-3: Assign final phrase to `placeholderForModifiedPhrase`
-        // Challenge 4 (extra credit): Extract middle 3 characters (beginning starts at middle of phrase),
+        // Challenge 4 (extra credit): Extract middle 3 characters (beginning starts at
+        // middle of phrase),
         // assign to 'placeholderForMiddleCharacters'
         // if not enough characters assign "Not enough characters"
- 
+
         // Step 1: sketch out plan using comments (include ucid and date)
         // Step 2: Add/commit your outline of comments (required for full credit)
         // Step 3: Add code to solve the problem (add/commit as needed)
         String placeholderForModifiedPhrase = "";
         String placeholderForMiddleCharacters = "";
-        
-        for(int i = 0; i <arr.length; i++){
+
+        for (int i = 0; i < arr.length; i++) {
             // Start Solution Edits
-            
-             // End Solution Edits
-            System.out.println(String.format("Index[%d] \"%s\" | Middle: \"%s\"",i, placeholderForModifiedPhrase, placeholderForMiddleCharacters));
+
+            // step 1
+            // step 2
+            // step 3
+            // step 4
+            // step 5
+
+            // End Solution Edits
+            System.out.println(String.format("Index[%d] \"%s\" | Middle: \"%s\"", i, placeholderForModifiedPhrase,
+                    placeholderForMiddleCharacters));
         }
 
-       
-
-        
         System.out.println("\n______________________________________");
     }
 
