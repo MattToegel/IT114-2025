@@ -1,0 +1,5 @@
+While hiking in the <adjective> mountains, I discovered a <adjective> cave.
+Inside, I found a <adjective> <creature> guarding a <object>.
+It looked at me and <verb_past_tense> loudly.
+I quickly grabbed my <object> and <verb_past_tense> out of there!
+That was the most <adjective> adventure of my life.

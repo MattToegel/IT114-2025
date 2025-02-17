@@ -1,0 +1,4 @@
+Today, I went to the zoo and saw a <adjective> <animal>.
+It was <verb_ending_in_ing> near the <place>.
+The zookeeper said it loved eating <food> and sleeping under a <object>.
+Before I left, I bought a <adjective> <souvenir> from the gift shop!
