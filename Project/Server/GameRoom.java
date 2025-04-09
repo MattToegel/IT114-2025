@@ -100,12 +100,10 @@ public class GameRoom extends BaseGameRoom {
         relay(null, String.format("Round %d has started", round));
         resetRoundTimer();
         resetTurnStatus();
-        // startRoundTimer(); Round timer likely isn't needed during turns, if you use
-        // it, make sure it's adequately long
-
-        onTurnStart();
         sendResetTurnStatus();
-        startRoundTimer();
+        // startRoundTimer(); round timer isn't used in this version, if you choose to
+        // use it, ensure there's adequate time
+        onTurnStart();
         LoggerUtil.INSTANCE.info("onRoundStart() end");
     }
 
@@ -133,6 +131,7 @@ public class GameRoom extends BaseGameRoom {
         LoggerUtil.INSTANCE.info("onTurnEnd() start");
         resetTurnTimer(); // reset timer if turn ended without the time expiring
         try {
+            // optionally can use checkAllTookTurn();
             if (isLastPlayer()) {
                 // if the current player is the last player in the turn order, end the round
                 onRoundEnd();
@@ -214,11 +213,10 @@ public class GameRoom extends BaseGameRoom {
     private void resetTurnStatus() {
         clientsInRoom.values().forEach(sp -> {
             sp.setTookTurn(false);
-            sp.sendResetReady();
         });
-        currentTurnClientId = Constants.DEFAULT_CLIENT_ID;
 
     }
+
     private void setTurnOrder() {
         turnOrder.clear();
         turnOrder = clientsInRoom.values().stream().filter(ServerThread::isReady).collect(Collectors.toList());
@@ -299,8 +297,11 @@ public class GameRoom extends BaseGameRoom {
             currentUser.setTookTurn(true);
             // TODO handle example text possibly or other turn related intention from client
             sendTurnStatus(currentUser, currentUser.didTakeTurn());
-            checkAllTookTurn();
+
             onTurnEnd();
+        } catch (NotPlayersTurnException e) {
+            currentUser.sendMessage(Constants.DEFAULT_CLIENT_ID, "It's not your turn");
+            LoggerUtil.INSTANCE.severe("handleTurnAction exception", e);
         } catch (PlayerNotFoundException e) {
             currentUser.sendMessage(Constants.DEFAULT_CLIENT_ID, "You must be in a GameRoom to do the ready check");
             LoggerUtil.INSTANCE.severe("handleTurnAction exception", e);

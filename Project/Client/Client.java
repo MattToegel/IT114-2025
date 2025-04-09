@@ -437,7 +437,7 @@ public enum Client {
     // Start process*() methods
     private void processResetTurn() {
         knownClients.values().forEach(cp -> cp.setTookTurn(false));
-        System.out.println("Ready status turn for everyone");
+        System.out.println("Turn status reset for everyone");
     }
 
     private void processTurn(Payload payload) {
