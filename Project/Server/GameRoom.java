@@ -100,7 +100,6 @@ public class GameRoom extends BaseGameRoom {
         relay(null, String.format("Round %d has started", round));
         resetRoundTimer();
         resetTurnStatus();
-        sendResetTurnStatus();
         // startRoundTimer(); round timer isn't used in this version, if you choose to
         // use it, ensure there's adequate time
         onTurnStart();
