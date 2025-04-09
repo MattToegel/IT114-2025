@@ -104,6 +104,8 @@ public class GameRoom extends BaseGameRoom {
         // it, make sure it's adequately long
 
         onTurnStart();
+        sendResetTurnStatus();
+        startRoundTimer();
         LoggerUtil.INSTANCE.info("onRoundStart() end");
     }
 
