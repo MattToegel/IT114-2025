@@ -55,6 +55,12 @@ public class ServerThread extends BaseServerThread {
     }
 
     // Start Send*() Methods
+    public boolean sendResetTurnStatus() {
+        ReadyPayload rp = new ReadyPayload();
+        rp.setPayloadType(PayloadType.RESET_TURN);
+        return sendToClient(rp);
+    }
+
     public boolean sendTurnStatus(long clientId, boolean didTakeTurn) {
         return sendTurnStatus(clientId, didTakeTurn, false);
     }

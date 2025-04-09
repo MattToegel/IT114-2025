@@ -415,7 +415,6 @@ public enum Client {
             case PayloadType.RESET_READY:
                 // note no data necessary as this is just a trigger
                 processResetReady();
-                processResetTurn();
                 break;
             case PayloadType.PHASE:
                 processPhase(payload);
@@ -423,6 +422,10 @@ public enum Client {
             case PayloadType.TURN:
             case PayloadType.SYNC_TURN:
                 processTurn(payload);
+                break;
+            case PayloadType.RESET_TURN:
+                // note no data necessary as this is just a trigger
+                processResetTurn();
                 break;
             default:
                 LoggerUtil.INSTANCE.warning(TextFX.colorize("Unhandled payload type", Color.YELLOW));
