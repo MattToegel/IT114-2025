@@ -214,7 +214,7 @@ public class GameRoom extends BaseGameRoom {
         clientsInRoom.values().forEach(sp -> {
             sp.setTookTurn(false);
         });
-
+        sendResetTurnStatus();
     }
 
     private void setTurnOrder() {
