@@ -167,6 +167,7 @@ public class GameRoom extends BaseGameRoom {
         turnOrder.clear();
         currentTurnClientId = Constants.DEFAULT_CLIENT_ID;
         resetReadyStatus();
+        resetTurnStatus();
         changePhase(Phase.READY);
         LoggerUtil.INSTANCE.info("onSessionEnd() end");
     }
