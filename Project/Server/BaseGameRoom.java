@@ -80,14 +80,6 @@ public abstract class BaseGameRoom extends Room {
         }
         // do the base Room class logic
         super.addClient(client);
-
-        if (clientsInRoom.containsKey(client.getClientId())) {
-
-            return;
-        }
-        // create a ServerThread wrapper and track it in this subclass
-
-        clientsInRoom.put(client.getClientId(), client);
         onClientAdded(client);
     }
 
@@ -96,20 +88,17 @@ public abstract class BaseGameRoom extends Room {
         if (!isRunning()) { // block action if Room isn't running
             return;
         }
-        // remove client (ServerThread)
-        ServerThread sp = clientsInRoom.remove(client.getClientId());
         LoggerUtil.INSTANCE.info("Players in room: " + clientsInRoom.size());
         // do the base-class logic
         super.removeClient(client);
-        onClientRemoved(sp);
+        onClientRemoved(client);
     }
 
     @Override
     protected synchronized void disconnect(ServerThread client) {
         super.disconnect(client);
-        ServerThread sp = clientsInRoom.remove(client.getClientId());
         LoggerUtil.INSTANCE.info("Players in room: " + clientsInRoom.size());
-        onClientRemoved(sp);
+        onClientRemoved(client);
     }
 
     /**
