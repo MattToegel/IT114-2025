@@ -105,10 +105,8 @@ public class GameRoom extends BaseGameRoom {
         relay(null, String.format("Round %d has started", round));
         resetRoundTimer();
         resetTurnStatus();
-        round++;
-        relay(null, String.format("Round %d has started", round));
-        startRoundTimer();
         LoggerUtil.INSTANCE.info("onRoundStart() end");
+        onTurnStart();
     }
 
     /** {@inheritDoc} */
