@@ -243,7 +243,7 @@ public class ServerThread extends BaseServerThread {
                     // cast to GameRoom as the subclass will handle all Game logic
                     ((GameRoom) currentRoom).handleTurnAction(this, incoming.getMessage());
                 } catch (Exception e) {
-                    sendMessage(Constants.DEFAULT_CLIENT_ID, "You must be in a GameRoom to do the ready check");
+                    sendMessage(Constants.DEFAULT_CLIENT_ID, "You must be in a GameRoom to do a turn");
                 }
                 break;
             default:

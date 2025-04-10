@@ -4,6 +4,7 @@ import Project.Common.Constants;
 import Project.Common.LoggerUtil;
 import Project.Common.Phase;
 import Project.Common.TimedEvent;
+import Project.Exceptions.NotReadyException;
 import Project.Exceptions.PhaseMismatchException;
 import Project.Exceptions.PlayerNotFoundException;
 
@@ -273,6 +274,13 @@ public abstract class BaseGameRoom extends Room {
             client.sendMessage(Constants.DEFAULT_CLIENT_ID,
                     String.format("Current phase is %s, please try again later", currentPhase.name()));
             throw new PhaseMismatchException("Invalid Phase");
+        }
+    }
+
+    protected void checkIsReady(ServerThread client) throws NotReadyException{
+        if(!client.isReady()){
+            client.sendMessage(Constants.DEFAULT_CLIENT_ID, "You must be marked 'ready' to do this action");
+            throw new NotReadyException("Not ready");
         }
     }
 

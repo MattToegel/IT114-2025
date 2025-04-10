@@ -163,7 +163,7 @@ public enum Client {
                 String message = TextFX.colorize("Known clients:\n", Color.CYAN);
                 LoggerUtil.INSTANCE.info(TextFX.colorize("Known clients:", Color.CYAN));
                 message += String.join("\n", knownClients.values().stream()
-                        .map(c -> String.format("%s(%s)%s %s %s", c.getClientName(), c.getClientId(),
+                        .map(c -> String.format("%s %s %s", c.getDisplayName(),
                                 c.getClientId() == myUser.getClientId() ? " (you)" : "",
                                 c.isReady() ? "[x]" : "[ ]",
                                 c.didTakeTurn() ? "[T]"
@@ -487,7 +487,7 @@ public enum Client {
         cp.setReady(rp.isReady());
         if (!isQuiet) {
             System.out.println(
-                    String.format("%s[%s] is %s", cp.getClientName(), cp.getClientId(),
+                    String.format("%s is %s", cp.getDisplayName(),
                             rp.isReady() ? "ready" : "not ready"));
         }
     }
