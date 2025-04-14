@@ -397,6 +397,9 @@ public class GameRoom extends BaseGameRoom {
         } catch (NotPlayersTurnException e) {
             currentUser.sendMessage(Constants.DEFAULT_CLIENT_ID, "It's not your turn");
             LoggerUtil.INSTANCE.severe("handleCardAction exception", e);
+        } catch (NotReadyException e) {
+            // The check method already informs the currentUser
+            LoggerUtil.INSTANCE.severe("handleTurnAction exception", e);
         } catch (PlayerNotFoundException e) {
             currentUser.sendMessage(Constants.DEFAULT_CLIENT_ID, "You must be in a GameRoom to do the ready check");
             LoggerUtil.INSTANCE.severe("handleCardAction exception", e);
