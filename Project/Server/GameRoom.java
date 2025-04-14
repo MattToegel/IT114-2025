@@ -13,6 +13,7 @@ import Project.Common.Phase;
 import Project.Common.TimedEvent;
 import Project.Exceptions.MissingCurrentPlayerException;
 import Project.Exceptions.NotPlayersTurnException;
+import Project.Exceptions.NotReadyException;
 import Project.Exceptions.PhaseMismatchException;
 import Project.Exceptions.PlayerNotFoundException;
 
@@ -49,11 +50,15 @@ public class GameRoom extends BaseGameRoom {
         // added after Summer 2024 Demo
         // Stops the timers so room can clean up
         LoggerUtil.INSTANCE.info("Player Removed, remaining: " + clientsInRoom.size());
+        long removedClient = sp.getClientId();
+        turnOrder.removeIf(player -> player.getClientId() == sp.getClientId());
         if (clientsInRoom.isEmpty()) {
             resetReadyTimer();
             resetTurnTimer();
             resetRoundTimer();
             onSessionEnd();
+        } else if (removedClient == currentTurnClientId) {
+            onTurnStart();
         }
     }
 
@@ -89,8 +94,8 @@ public class GameRoom extends BaseGameRoom {
     @Override
     protected void onSessionStart() {
         LoggerUtil.INSTANCE.info("onSessionStart() start");
-        currentTurnClientId = Constants.DEFAULT_CLIENT_ID;
         changePhase(Phase.IN_PROGRESS);
+        currentTurnClientId = Constants.DEFAULT_CLIENT_ID;
         setTurnOrder();
         round = 0;
         board = new Board();
@@ -115,11 +120,8 @@ public class GameRoom extends BaseGameRoom {
         relay(null, String.format("Round %d has started", round));
         resetRoundTimer();
         resetTurnStatus();
-        sendResetTurnStatus();
-        // startRoundTimer(); round timer isn't used in this version, if you choose to
-        // use it, ensure there's adequate time
-        onTurnStart();
         LoggerUtil.INSTANCE.info("onRoundStart() end");
+        onTurnStart();
     }
 
     /** {@inheritDoc} */
@@ -200,6 +202,7 @@ public class GameRoom extends BaseGameRoom {
         currentTurnClientId = Constants.DEFAULT_CLIENT_ID;
         resetTurnStatus();
         resetReadyStatus();
+        resetTurnStatus();
         changePhase(Phase.READY);
         LoggerUtil.INSTANCE.info("onSessionEnd() end");
     }
@@ -293,7 +296,6 @@ public class GameRoom extends BaseGameRoom {
             sp.setTookTurn(false);
         });
         sendResetTurnStatus();
-
     }
 
     private void setTurnOrder() {
@@ -419,6 +421,7 @@ public class GameRoom extends BaseGameRoom {
             checkPlayerInRoom(currentUser);
             checkCurrentPhase(currentUser, Phase.IN_PROGRESS);
             checkCurrentPlayer(currentUser.getClientId());
+            checkIsReady(currentUser);
             if (currentUser.didTakeTurn()) {
                 currentUser.sendMessage(Constants.DEFAULT_CLIENT_ID, "You have already taken your turn this round");
                 return;
@@ -430,6 +433,9 @@ public class GameRoom extends BaseGameRoom {
             onTurnEnd();
         } catch (NotPlayersTurnException e) {
             currentUser.sendMessage(Constants.DEFAULT_CLIENT_ID, "It's not your turn");
+            LoggerUtil.INSTANCE.severe("handleTurnAction exception", e);
+        } catch (NotReadyException e) {
+            // The check method already informs the currentUser
             LoggerUtil.INSTANCE.severe("handleTurnAction exception", e);
         } catch (PlayerNotFoundException e) {
             currentUser.sendMessage(Constants.DEFAULT_CLIENT_ID, "You must be in a GameRoom to do the ready check");
