@@ -139,6 +139,10 @@ public class User {
         this.clientName = null;
         this.isReady = false;
         this.tookTurn = false;
+        this.points = 0;
+        if(this.cards != null){
+            cards.clear();
+        }
     }
 
     /**
