@@ -9,6 +9,7 @@ import Equals6.Common.BoardPayload;
 import Equals6.Common.Card;
 import Equals6.Common.CardCoordPayload;
 import Equals6.Common.CardsPayload;
+import Equals6.Common.CellPayload;
 import Equals6.Common.ConnectionPayload;
 import Equals6.Common.Constants;
 import Equals6.Common.LoggerUtil;
@@ -60,6 +61,14 @@ public class ServerThread extends BaseServerThread {
     }
 
     // Start Send*() Methods
+    public boolean sendCellUpdate(int x, int y, int value){
+        CellPayload cp = new CellPayload();
+        cp.setPayloadType(PayloadType.CELL);
+        cp.setX(x);
+        cp.setY(y);
+        cp.setValue(value);
+        return sendToClient(cp);
+    }
     public boolean sendPlayerPoints(long clientId, int points) {
         PointsPayload payload = new PointsPayload();
         payload.setClientId(clientId);
@@ -287,8 +296,13 @@ public class ServerThread extends BaseServerThread {
                     CardCoordPayload cp = (CardCoordPayload) incoming;
                     Card card = cp.getCards().get(0);
                     ((GameRoom) currentRoom).handleCardAction(this, cp.getX(), cp.getY(), card);
-                } catch (Exception e) {
-                    sendMessage(Constants.DEFAULT_CLIENT_ID, "You must be in a GameRoom to do the ready check");
+                } 
+                catch(ClassCastException e){
+                    LoggerUtil.INSTANCE.severe("Error casting in CARD", e);
+                    sendMessage(Constants.DEFAULT_CLIENT_ID, "Error handling CARD action");
+                }
+                catch (Exception e) {
+                    sendMessage(Constants.DEFAULT_CLIENT_ID, "You must be in a GameRoom to do a turn");
                 }
                 break;
             default:
@@ -317,7 +331,9 @@ public class ServerThread extends BaseServerThread {
     protected int getPoints() {
         return this.user.getPoints();
     }
-
+    protected void setPoints(int p){
+        this.user.setPoints(p);
+    }
     protected void addCards(List<Card> cards) {
         this.user.addCards(cards);
         sendDrawnCards(cards);

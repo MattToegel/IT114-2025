@@ -15,6 +15,7 @@ import java.util.regex.Pattern;
 import Equals6.Common.Board;
 import Equals6.Common.BoardPayload;
 import Equals6.Common.Card;
+import Equals6.Common.CardCoordPayload;
 import Equals6.Common.CardsPayload;
 import Equals6.Common.CellPayload;
 import Equals6.Common.Command;
@@ -24,6 +25,7 @@ import Equals6.Common.LoggerUtil;
 import Equals6.Common.Payload;
 import Equals6.Common.PayloadType;
 import Equals6.Common.Phase;
+import Equals6.Common.PointsPayload;
 import Equals6.Common.ReadyPayload;
 import Equals6.Common.RoomAction;
 import Equals6.Common.RoomResultPayload;
@@ -257,8 +259,10 @@ public enum Client {
 
     // Start Send*() methods
     private void sendCardChoice(int x, int y, Card card) throws IOException {
-        CardsPayload payload = new CardsPayload();
+        CardCoordPayload payload = new CardCoordPayload();
         payload.setCard(card);
+        payload.setX(x);
+        payload.setY(y);
         payload.setPayloadType(PayloadType.CARD);
         sendToServer(payload);
     }
@@ -482,6 +486,8 @@ public enum Client {
             case PayloadType.CARD:
                 processCardAdd(payload);
                 break;
+            case PayloadType.POINTS:
+                processPoints(payload);
             default:
                 LoggerUtil.INSTANCE.warning(TextFX.colorize("Unhandled payload type", Color.YELLOW));
                 break;
@@ -490,6 +496,17 @@ public enum Client {
     }
 
     // Start process*() methods
+    private void processPoints(Payload payload){
+        if (!(payload instanceof PointsPayload)) {
+            error("Invalid payload subclass for processCardAdd");
+            return;
+        }
+        PointsPayload pp = (PointsPayload)payload;
+        long targetId = pp.getClientId();
+        int points = pp.getPoints();
+        // TODO add safety checks
+        knownClients.get(targetId).setPoints(points);
+    }
     private void processCardAdd(Payload payload) {
         if (!(payload instanceof CardsPayload)) {
             error("Invalid payload subclass for processCardAdd");
@@ -590,7 +607,15 @@ public enum Client {
     }
 
     private void processResetReady() {
-        knownClients.values().forEach(cp -> cp.setReady(false));
+        //knownClients.values().forEach(cp -> cp.setReady(false));
+        // bulk reset data
+        knownClients.values().forEach(cp ->{
+            cp.setReady(false);
+            cp.setTookTurn(false);
+            cp.setPoints(0);
+            cp.setCards(null);
+        });
+        
         System.out.println("Ready status reset for everyone");
     }
 

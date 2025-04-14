@@ -55,6 +55,6 @@ public class BoardPayload extends Payload {
 
     @Override
     public String toString() {
-        return super.toString() + String.format(" rows=[%d], cols=[%d], seed=[%d]", rows, cols, seed);
+        return super.toString() + String.format(" rows=[%d], cols=[%d], seed=[%s]", rows, cols, seed);
     }
 }

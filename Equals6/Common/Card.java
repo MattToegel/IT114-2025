@@ -34,7 +34,7 @@ public class Card implements Cloneable, Serializable {
 
     @Override
     public String toString() {
-        return String.format("Card[%d](%d) = %d", getId(), name, value);
+        return String.format("Card[%s](%s) = %d", getId(), name, value);
     }
 
     @Override

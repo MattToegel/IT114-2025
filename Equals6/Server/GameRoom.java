@@ -76,7 +76,7 @@ public class GameRoom extends BaseGameRoom {
     }
 
     private void startTurnTimer() {
-        turnTimer = new TimedEvent(30, () -> onTurnEnd());
+        turnTimer = new TimedEvent(90, () -> onTurnEnd());
         turnTimer.setTickCallback((time) -> System.out.println("Turn Time: " + time));
     }
 
@@ -200,9 +200,9 @@ public class GameRoom extends BaseGameRoom {
         LoggerUtil.INSTANCE.info("onSessionEnd() start");
         turnOrder.clear();
         currentTurnClientId = Constants.DEFAULT_CLIENT_ID;
-        resetTurnStatus();
         resetReadyStatus();
         resetTurnStatus();
+        clientsInRoom.values().stream().forEach(s->s.setPoints(0));
         changePhase(Phase.READY);
         LoggerUtil.INSTANCE.info("onSessionEnd() end");
     }
@@ -232,7 +232,15 @@ public class GameRoom extends BaseGameRoom {
             }
         });
     }
-
+    private void sendCellUpdate(int x, int y, int value){
+        clientsInRoom.values().removeIf(spInRoom -> {
+            boolean failedToSend = !spInRoom.sendCellUpdate(x,y,value);
+            if (failedToSend) {
+                removeClient(spInRoom);
+            }
+            return failedToSend;
+        });
+    }
     private void sendDrawnHandToPlayers(Deck deck, int numCards) {
         turnOrder.removeIf(player -> {
             List<Card> hand = deck.drawCards(numCards);
@@ -377,6 +385,7 @@ public class GameRoom extends BaseGameRoom {
             }
             // apply card effect
             board.applyAction(x, y, cardFromHand.getValue());
+            sendCellUpdate(x, y, cardFromHand.getValue());
             relay(null, String.format("%s added %s to (%d,%d)", currentUser.getDisplayName(),
                     cardFromHand.getValue(), x, y));
             // check points earned, if any
