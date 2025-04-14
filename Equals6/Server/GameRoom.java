@@ -386,10 +386,11 @@ public class GameRoom extends BaseGameRoom {
             } else {
                 currentUser.changePoints(points);
                 relay(null, String.format("%s gained %d point(s)", currentUser.getDisplayName(), points));
-                currentUser.sendPlayerPoints(currentUser.getClientId(), currentUser.getPoints());
+                //currentUser.sendPlayerPoints(currentUser.getClientId(), currentUser.getPoints());
+                sendPlayerPoints(currentUser);
             }
             currentUser.sendRemoveCard(cardFromHand);
-            sendPlayerPoints(currentUser);
+            
             currentUser.setTookTurn(true);
             sendTurnStatus(currentUser, currentUser.didTakeTurn());
 
