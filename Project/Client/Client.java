@@ -12,6 +12,11 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import Project.Common.Board;
+import Project.Common.BoardPayload;
+import Project.Common.Card;
+import Project.Common.CardsPayload;
+import Project.Common.CellPayload;
 import Project.Common.Command;
 import Project.Common.ConnectionPayload;
 import Project.Common.Constants;
@@ -52,6 +57,7 @@ public enum Client {
     private final ConcurrentHashMap<Long, User> knownClients = new ConcurrentHashMap<Long, User>();
     private User myUser = new User();
     private Phase currentPhase = Phase.READY;
+    private Board board = null;
 
     private void error(String message) {
         LoggerUtil.INSTANCE.severe(TextFX.colorize(String.format("%s", message), Color.RED));
@@ -163,11 +169,12 @@ public enum Client {
                 String message = TextFX.colorize("Known clients:\n", Color.CYAN);
                 LoggerUtil.INSTANCE.info(TextFX.colorize("Known clients:", Color.CYAN));
                 message += String.join("\n", knownClients.values().stream()
-                        .map(c -> String.format("%s(%s)%s %s %s", c.getClientName(), c.getClientId(),
+                        .map(c -> String.format("%s(%s)%s %s %s %s pts", c.getClientName(), c.getClientId(),
                                 c.getClientId() == myUser.getClientId() ? " (you)" : "",
                                 c.isReady() ? "[x]" : "[ ]",
                                 c.didTakeTurn() ? "[T]"
-                                        : "[ ]"))
+                                        : "[ ]",
+                                c.getPoints()))
                         .toList());
                 LoggerUtil.INSTANCE.info(message);
                 wasCommand = true;
@@ -217,12 +224,44 @@ public enum Client {
 
                 sendDoTurn(text);
                 wasCommand = true;
+            } else if (text.startsWith(Command.USE.command)) {
+                try {
+                    String data = text.replace(Command.USE.command, "").trim();
+                    String[] parts = data.split(",");
+                    int cardId = Integer.parseInt(parts[0].trim());
+                    int x = Integer.parseInt(parts[1].trim());
+                    int y = Integer.parseInt(parts[2].trim());
+
+                    if (myUser.getCards() == null || myUser.getCards().size() == 0) {
+                        LoggerUtil.INSTANCE.warning(TextFX.colorize("No cards in hand", Color.RED));
+                        return true;
+                    }
+                    Card card = myUser.getCards().stream()
+                            .filter(c -> c.getId() == cardId).findFirst().orElse(null);
+                    if (card == null) {
+                        LoggerUtil.INSTANCE.warning(TextFX.colorize("Card not found in hand", Color.RED));
+                        return true;
+                    }
+                    sendCardChoice(x, y, card);
+                } catch (NumberFormatException nfe) {
+                    LoggerUtil.INSTANCE
+                            .warning(TextFX.colorize("Invalid format, must be /use <cardId>,<x>,<y>", Color.RED));
+                    return true;
+                }
+                wasCommand = true;
             }
         }
         return wasCommand;
     }
 
     // Start Send*() methods
+    private void sendCardChoice(int x, int y, Card card) throws IOException {
+        CardsPayload payload = new CardsPayload();
+        payload.setCard(card);
+        payload.setPayloadType(PayloadType.CARD);
+        sendToServer(payload);
+    }
+
     private void sendDoTurn(String text) throws IOException {
         // NOTE for now using ReadyPayload as it has the necessary properties
         // An actual turn may include other data for your project
@@ -427,6 +466,21 @@ public enum Client {
                 // note no data necessary as this is just a trigger
                 processResetTurn();
                 break;
+            case PayloadType.BOARD_DATA:
+                processBoardData(payload);
+                break;
+            case PayloadType.CELL:
+                processCell(payload);
+                break;
+            case PayloadType.HAND:
+                processMyHand(payload);
+                break;
+            case PayloadType.REMOVE_CARD:
+                processCardRemoval(payload);
+                break;
+            case PayloadType.CARD:
+                processCardAdd(payload);
+                break;
             default:
                 LoggerUtil.INSTANCE.warning(TextFX.colorize("Unhandled payload type", Color.YELLOW));
                 break;
@@ -435,6 +489,73 @@ public enum Client {
     }
 
     // Start process*() methods
+    private void processCardAdd(Payload payload) {
+        if (!(payload instanceof CardsPayload)) {
+            error("Invalid payload subclass for processCardAdd");
+            return;
+        }
+        CardsPayload cp = (CardsPayload) payload;
+        List<Card> cards = cp.getCards();
+        if (cards == null || cards.size() == 0) {
+            LoggerUtil.INSTANCE.warning("No cards found in payload");
+            return;
+        }
+        myUser.addCards(cards);
+        LoggerUtil.INSTANCE.info("My hand: " + myUser.handToString());
+    }
+
+    private void processCardRemoval(Payload payload) {
+        if (!(payload instanceof CardsPayload)) {
+            error("Invalid payload subclass for processCardRemove");
+            return;
+        }
+        CardsPayload cp = (CardsPayload) payload;
+        List<Card> cards = cp.getCards();
+        if (cards == null || cards.size() == 0) {
+            LoggerUtil.INSTANCE.warning("No cards found in payload");
+            return;
+        }
+        myUser.removeCard(cards.get(0));
+        LoggerUtil.INSTANCE.info("My hand: " + myUser.handToString());
+    }
+
+    private void processMyHand(Payload payload) {
+        if (!(payload instanceof CardsPayload)) {
+            error("Invalid payload subclass for processMyHand");
+            return;
+        }
+        CardsPayload cp = (CardsPayload) payload;
+        List<Card> cards = cp.getCards();
+        if (cards == null || cards.size() == 0) {
+            LoggerUtil.INSTANCE.warning("No cards found in payload");
+            return;
+        }
+        myUser.setCards(cards);
+        LoggerUtil.INSTANCE.info("My hand: " + myUser.handToString());
+    }
+
+    private void processCell(Payload payload) {
+        if (!(payload instanceof CellPayload)) {
+            error("Invalid payload subclass for processCell");
+            return;
+        }
+        CellPayload cp = (CellPayload) payload;
+        board.applyAction(cp.getX(), cp.getY(), cp.getValue());
+        LoggerUtil.INSTANCE.info("Updated Board: \n" + board.toString());
+    }
+
+    private void processBoardData(Payload payload) {
+        if (!(payload instanceof BoardPayload)) {
+            error("Invalid payload subclass for processBoardData");
+            return;
+        }
+        BoardPayload bp = (BoardPayload) payload;
+        board = new Board();
+        board.setSeed(bp.getSeed());
+        board.initialize(bp.getRows(), bp.getCols());
+        LoggerUtil.INSTANCE.info("Initialized Board: \n" + board.toString());
+    }
+
     private void processResetTurn() {
         knownClients.values().forEach(cp -> cp.setTookTurn(false));
         System.out.println("Turn status reset for everyone");

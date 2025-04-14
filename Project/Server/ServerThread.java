@@ -5,12 +5,17 @@ import java.util.List;
 import java.util.Objects;
 import java.util.function.Consumer;
 
+import Project.Common.BoardPayload;
+import Project.Common.Card;
+import Project.Common.CardCoordPayload;
+import Project.Common.CardsPayload;
 import Project.Common.ConnectionPayload;
 import Project.Common.Constants;
 import Project.Common.LoggerUtil;
 import Project.Common.Payload;
 import Project.Common.PayloadType;
 import Project.Common.Phase;
+import Project.Common.PointsPayload;
 import Project.Common.ReadyPayload;
 import Project.Common.RoomAction;
 import Project.Common.RoomResultPayload;
@@ -55,6 +60,35 @@ public class ServerThread extends BaseServerThread {
     }
 
     // Start Send*() Methods
+    public boolean sendPlayerPoints(long clientId, int points) {
+        PointsPayload payload = new PointsPayload();
+        payload.setClientId(clientId);
+        payload.setPoints(points);
+        return sendToClient(payload);
+    }
+
+    public boolean sendRemoveCard(Card card) {
+        CardsPayload cp = new CardsPayload();
+        cp.setPayloadType(PayloadType.REMOVE_CARD);
+        cp.setCard(card);
+        return sendToClient(cp);
+    }
+
+    public boolean sendDrawnCards(List<Card> cards) {
+        CardsPayload cp = new CardsPayload();
+        if (cards != null && cards.size() < 5) {
+            // denotes drawn cards vs hand sync
+            cp.setPayloadType(PayloadType.CARD);
+        }
+        cp.setCards(cards);
+        return sendToClient(cp);
+    }
+
+    public boolean sendBoardData(int rows, int cols, long seed) {
+        BoardPayload bp = new BoardPayload(rows, cols, seed);
+        return sendToClient(bp);
+    }
+
     public boolean sendResetTurnStatus() {
         ReadyPayload rp = new ReadyPayload();
         rp.setPayloadType(PayloadType.RESET_TURN);
@@ -246,6 +280,17 @@ public class ServerThread extends BaseServerThread {
                     sendMessage(Constants.DEFAULT_CLIENT_ID, "You must be in a GameRoom to do the ready check");
                 }
                 break;
+            case CARD:
+                // no data needed as the intent will be used as the trigger
+                try {
+                    // cast to GameRoom as the subclass will handle all Game logic
+                    CardCoordPayload cp = (CardCoordPayload) incoming;
+                    Card card = cp.getCards().get(0);
+                    ((GameRoom) currentRoom).handleCardAction(this, cp.getX(), cp.getY(), card);
+                } catch (Exception e) {
+                    sendMessage(Constants.DEFAULT_CLIENT_ID, "You must be in a GameRoom to do the ready check");
+                }
+                break;
             default:
                 LoggerUtil.INSTANCE.warning(TextFX.colorize("Unknown payload type received", Color.RED));
                 break;
@@ -267,6 +312,31 @@ public class ServerThread extends BaseServerThread {
 
     protected void setTookTurn(boolean tookTurn) {
         this.user.setTookTurn(tookTurn);
+    }
+
+    protected int getPoints() {
+        return this.user.getPoints();
+    }
+
+    protected void addCards(List<Card> cards) {
+        this.user.addCards(cards);
+        sendDrawnCards(cards);
+    }
+
+    protected void setCards(List<Card> hand) {
+        this.user.setCards(hand);
+    }
+
+    protected Card removeCard(Card card) {
+        return this.user.removeCard(card);
+    }
+
+    protected void changePoints(int points) {
+        this.user.changePoints(points);
+    }
+
+    protected int getHandSize() {
+        return this.user.getCards().size();
     }
 
     @Override
