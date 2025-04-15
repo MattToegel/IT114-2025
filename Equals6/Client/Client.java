@@ -488,6 +488,7 @@ public enum Client {
                 break;
             case PayloadType.POINTS:
                 processPoints(payload);
+                break;
             default:
                 LoggerUtil.INSTANCE.warning(TextFX.colorize("Unhandled payload type", Color.YELLOW));
                 break;
