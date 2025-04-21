@@ -5,12 +5,11 @@ import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
 
-import Project.Common.Board;
-import Project.Common.Card;
 import Project.Common.Constants;
 import Project.Common.LoggerUtil;
 import Project.Common.Phase;
 import Project.Common.TimedEvent;
+import Project.Common.TimerType;
 import Project.Exceptions.MissingCurrentPlayerException;
 import Project.Exceptions.NotPlayersTurnException;
 import Project.Exceptions.NotReadyException;
@@ -27,8 +26,6 @@ public class GameRoom extends BaseGameRoom {
     private List<ServerThread> turnOrder = new ArrayList<>();
     private long currentTurnClientId = Constants.DEFAULT_CLIENT_ID;
     private int round = 0;
-    private Board board = null;
-    private Deck deck = new Deck();
 
     public GameRoom(String name) {
         super(name);
@@ -41,7 +38,6 @@ public class GameRoom extends BaseGameRoom {
         syncCurrentPhase(sp);
         syncReadyStatus(sp);
         syncTurnStatus(sp);
-        syncPlayerPoints(sp);
     }
 
     /** {@inheritDoc} */
@@ -65,25 +61,33 @@ public class GameRoom extends BaseGameRoom {
     // timer handlers
     private void startRoundTimer() {
         roundTimer = new TimedEvent(30, () -> onRoundEnd());
-        roundTimer.setTickCallback((time) -> System.out.println("Round Time: " + time));
+        roundTimer.setTickCallback((time) -> {
+            System.out.println("Round Time: " + time);
+            sendCurrentTime(TimerType.ROUND, time);
+        });
     }
 
     private void resetRoundTimer() {
         if (roundTimer != null) {
             roundTimer.cancel();
             roundTimer = null;
+            sendCurrentTime(TimerType.ROUND, -1);
         }
     }
 
     private void startTurnTimer() {
         turnTimer = new TimedEvent(30, () -> onTurnEnd());
-        turnTimer.setTickCallback((time) -> System.out.println("Turn Time: " + time));
+        turnTimer.setTickCallback((time) -> {
+            System.out.println("Turn Time: " + time);
+            sendCurrentTime(TimerType.TURN, time);
+        });
     }
 
     private void resetTurnTimer() {
         if (turnTimer != null) {
             turnTimer.cancel();
             turnTimer = null;
+            sendCurrentTime(TimerType.TURN, -1);
         }
     }
     // end timer handlers
@@ -98,16 +102,7 @@ public class GameRoom extends BaseGameRoom {
         currentTurnClientId = Constants.DEFAULT_CLIENT_ID;
         setTurnOrder();
         round = 0;
-        board = new Board();
-        board.initialize();
-        long seed = board.getSeed();
-        int rows = board.getRows();
-        int cols = board.getCols();
-        LoggerUtil.INSTANCE.info("Initialized Board: \n" + board.toString());
-        sendBoardData(rows, cols, seed);
-        deck.initialize();
-        sendDrawnHandToPlayers(deck, 5);
-        LoggerUtil.INSTANCE.info("Initialized Deck: \n" + deck.toString());
+
         LoggerUtil.INSTANCE.info("onSessionStart() end");
         onRoundStart();
     }
@@ -137,17 +132,7 @@ public class GameRoom extends BaseGameRoom {
 
             e.printStackTrace();
         }
-        if (currentPlayer != null) {
-            // draw up to 5
-            int diff = 5;
-            diff -= currentPlayer.getHandSize();
-            if (diff > 0) {
-                LoggerUtil.INSTANCE.info(String.format("%s drawing %d cards", currentPlayer.getDisplayName(), diff));
-                List<Card> cardsToDraw = deck.drawCards(diff);
-                currentPlayer.addCards(cardsToDraw);
-                relay(null, String.format("%s drew %d card(s)", currentPlayer.getDisplayName(), diff));
-            }
-        }
+
         startTurnTimer();
         LoggerUtil.INSTANCE.info("onTurnStart() end");
     }
@@ -209,51 +194,6 @@ public class GameRoom extends BaseGameRoom {
     // end lifecycle methods
 
     // send/sync data to ServerUser(s)
-    private void sendPlayerPoints(ServerThread client) {
-        clientsInRoom.values().removeIf(spInRoom -> {
-            boolean failedToSend = !spInRoom.sendPlayerPoints(client.getClientId(), client.getPoints());
-            if (failedToSend) {
-                removeClient(spInRoom);
-            }
-            return failedToSend;
-        });
-    }
-
-    private void syncPlayerPoints(ServerThread incomingClient) {
-        clientsInRoom.values().forEach(serverUser -> {
-            if (serverUser.getClientId() != incomingClient.getClientId()) {
-                boolean failedToSync = !incomingClient.sendPlayerPoints(serverUser.getClientId(),
-                        serverUser.getPoints());
-                if (failedToSync) {
-                    LoggerUtil.INSTANCE.warning(
-                            String.format("Removing disconnected %s from list", serverUser.getDisplayName()));
-                    disconnect(serverUser);
-                }
-            }
-        });
-    }
-
-    private void sendDrawnHandToPlayers(Deck deck, int numCards) {
-        turnOrder.removeIf(player -> {
-            List<Card> hand = deck.drawCards(numCards);
-            player.setCards(hand); // set server-side data
-            // sync to client
-            boolean failedToSend = !player.sendDrawnCards(hand);
-            if (failedToSend) {
-                removeClient(player);
-            }
-            return failedToSend;
-        });
-    }
-
-    private void sendBoardData(int rows, int cols, long seed) {
-        clientsInRoom.values().forEach(spInRoom -> {
-            boolean failedToSend = !spInRoom.sendBoardData(rows, cols, seed);
-            if (failedToSend) {
-                removeClient(spInRoom);
-            }
-        });
-    }
 
     private void sendResetTurnStatus() {
         clientsInRoom.values().forEach(spInRoom -> {
@@ -357,61 +297,6 @@ public class GameRoom extends BaseGameRoom {
     }
 
     // end check methods
-
-    // receive data from ServerThread (GameRoom specific)
-    protected void handleCardAction(ServerThread currentUser, int x, int y, Card card) {
-        try {
-            checkPlayerInRoom(currentUser);
-            checkCurrentPhase(currentUser, Phase.IN_PROGRESS);
-            checkCurrentPlayer(currentUser.getClientId());
-            if (currentUser.didTakeTurn()) {
-                currentUser.sendMessage(Constants.DEFAULT_CLIENT_ID, "You have already taken your turn this round");
-                return;
-            }
-            // check if hard is in hand (by id)
-            // fetches server-side reference if it removed
-            Card cardFromHand = currentUser.removeCard(card);
-            if (cardFromHand == null) {
-                currentUser.sendMessage(Constants.DEFAULT_CLIENT_ID, "Card not found in hand");
-                return;
-            }
-            // apply card effect
-            board.applyAction(x, y, cardFromHand.getValue());
-            relay(null, String.format("%s added %s to (%d,%d)", currentUser.getDisplayName(),
-                    cardFromHand.getValue(), x, y));
-            // check points earned, if any
-            int points = board.getPoints();
-            if (points == 0) {
-                relay(null, String.format("%s didn't gain any points", currentUser.getDisplayName()));
-            } else {
-                currentUser.changePoints(points);
-                relay(null, String.format("%s gained %d point(s)", currentUser.getDisplayName(), points));
-                currentUser.sendPlayerPoints(currentUser.getClientId(), currentUser.getPoints());
-            }
-            currentUser.sendRemoveCard(cardFromHand);
-            sendPlayerPoints(currentUser);
-            currentUser.setTookTurn(true);
-            sendTurnStatus(currentUser, currentUser.didTakeTurn());
-
-            onTurnEnd();
-        } catch (NotPlayersTurnException e) {
-            currentUser.sendMessage(Constants.DEFAULT_CLIENT_ID, "It's not your turn");
-            LoggerUtil.INSTANCE.severe("handleCardAction exception", e);
-        } catch (NotReadyException e) {
-            // The check method already informs the currentUser
-            LoggerUtil.INSTANCE.severe("handleTurnAction exception", e);
-        } catch (PlayerNotFoundException e) {
-            currentUser.sendMessage(Constants.DEFAULT_CLIENT_ID, "You must be in a GameRoom to do the ready check");
-            LoggerUtil.INSTANCE.severe("handleCardAction exception", e);
-        } catch (PhaseMismatchException e) {
-            currentUser.sendMessage(Constants.DEFAULT_CLIENT_ID,
-                    "You can only take a turn during the IN_PROGRESS phase");
-            LoggerUtil.INSTANCE.severe("handleCardAction exception", e);
-        } catch (Exception e) {
-            LoggerUtil.INSTANCE.severe("handleCardAction exception", e);
-        }
-
-    }
 
     /**
      * Example turn action

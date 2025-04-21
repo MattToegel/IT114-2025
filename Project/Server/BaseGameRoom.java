@@ -4,6 +4,7 @@ import Project.Common.Constants;
 import Project.Common.LoggerUtil;
 import Project.Common.Phase;
 import Project.Common.TimedEvent;
+import Project.Common.TimerType;
 import Project.Exceptions.NotReadyException;
 import Project.Exceptions.PhaseMismatchException;
 import Project.Exceptions.PlayerNotFoundException;
@@ -109,6 +110,7 @@ public abstract class BaseGameRoom extends Room {
         if (readyTimer != null) {
             readyTimer.cancel();
             readyTimer = null;
+            sendCurrentTime(TimerType.READY, -1);
         }
     }
 
@@ -126,7 +128,10 @@ public abstract class BaseGameRoom extends Room {
                 // callback to trigger when ready expires
                 checkReadyStatus();
             });
-            readyTimer.setTickCallback((time) -> System.out.println("Ready Timer: " + time));
+            readyTimer.setTickCallback((time) -> {
+                System.out.println("Ready Timer: " + time);
+                sendCurrentTime(TimerType.READY, time);
+            });
         }
     }
 
@@ -163,6 +168,21 @@ public abstract class BaseGameRoom extends Room {
     }
 
     // send/sync data to ServerThread(s)
+    /**
+     * Note: due to log output, this will get really spammy
+     * 
+     * @param timerType
+     * @param time      the remaining time or -1 to cancel
+     */
+    protected void sendCurrentTime(TimerType timerType, int time) {
+        clientsInRoom.values().removeIf(spInRoom -> {
+            boolean failedToSend = !spInRoom.sendCurrentTime(timerType, time);
+            if (failedToSend) {
+                removeClient(spInRoom);
+            }
+            return failedToSend;
+        });
+    }
 
     /**
      * Syncs the current phase to a single client
@@ -277,8 +297,8 @@ public abstract class BaseGameRoom extends Room {
         }
     }
 
-    protected void checkIsReady(ServerThread client) throws NotReadyException{
-        if(!client.isReady()){
+    protected void checkIsReady(ServerThread client) throws NotReadyException {
+        if (!client.isReady()) {
             client.sendMessage(Constants.DEFAULT_CLIENT_ID, "You must be marked 'ready' to do this action");
             throw new NotReadyException("Not ready");
         }

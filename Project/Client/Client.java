@@ -5,6 +5,7 @@ import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.net.Socket;
 import java.net.UnknownHostException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Scanner;
 import java.util.concurrent.CompletableFuture;
@@ -12,11 +13,14 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import Project.Common.Board;
-import Project.Common.BoardPayload;
-import Project.Common.Card;
-import Project.Common.CardsPayload;
-import Project.Common.CellPayload;
+import Project.Client.Interfaces.IClientEvents;
+import Project.Client.Interfaces.IConnectionEvents;
+import Project.Client.Interfaces.IMessageEvents;
+import Project.Client.Interfaces.IPhaseEvent;
+import Project.Client.Interfaces.IReadyEvent;
+import Project.Client.Interfaces.IRoomEvents;
+import Project.Client.Interfaces.ITimeEvents;
+import Project.Client.Interfaces.ITurnEvent;
 import Project.Common.Command;
 import Project.Common.ConnectionPayload;
 import Project.Common.Constants;
@@ -30,6 +34,8 @@ import Project.Common.RoomResultPayload;
 import Project.Common.TextFX;
 import Project.Common.User;
 import Project.Common.TextFX.Color;
+import Project.Common.TimerPayload;
+import Project.Common.TimerType;
 
 /**
  * Demoing bi-directional communication between client and server in a
@@ -57,7 +63,13 @@ public enum Client {
     private final ConcurrentHashMap<Long, User> knownClients = new ConcurrentHashMap<Long, User>();
     private User myUser = new User();
     private Phase currentPhase = Phase.READY;
-    private Board board = null;
+
+    // callback that updates the UI
+    private static List<IClientEvents> events = new ArrayList<IClientEvents>();
+
+    public void addCallback(IClientEvents e) {
+        events.add(e);
+    }
 
     private void error(String message) {
         LoggerUtil.INSTANCE.severe(TextFX.colorize(String.format("%s", message), Color.RED));
@@ -86,6 +98,7 @@ public enum Client {
      * @param port
      * @return true if connection was successful
      */
+    @Deprecated
     private boolean connect(String address, int port) {
         try {
             server = new Socket(address, port);
@@ -102,6 +115,65 @@ public enum Client {
             e.printStackTrace();
         }
         return isConnected();
+    }
+
+    /**
+     * Takes an ip address and a port to attempt a socket connection to a server.
+     * 
+     * @param address
+     * @param port
+     * @param username
+     * @param callback (for triggering UI events)
+     * @return true if connection was successful
+     */
+    public boolean connect(String address, int port, String username, IClientEvents callback) {
+        myUser.setClientName(username);
+        addCallback(callback);
+        try {
+            server = new Socket(address, port);
+            // channel to send to server
+            out = new ObjectOutputStream(server.getOutputStream());
+            // channel to listen to server
+            in = new ObjectInputStream(server.getInputStream());
+            LoggerUtil.INSTANCE.info("Client connected");
+            // Use CompletableFuture to run listenToServer() in a separate thread
+            CompletableFuture.runAsync(this::listenToServer);
+            sendClientName(myUser.getClientName());// sync follow-up data (handshake)
+        } catch (UnknownHostException e) {
+            e.printStackTrace();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        return isConnected();
+    }
+
+    public long getMyClientId() {
+        return myUser.getClientId();
+    }
+
+    public void clientSideGameEvent(String str) {
+        events.forEach(event -> {
+            if (event instanceof IMessageEvents) {
+                // Note: using -2 to target GameEventPanel
+                ((IMessageEvents) event).onMessageReceive(Constants.GAME_EVENT_CHANNEL, str);
+            }
+        });
+    }
+
+    /**
+     * Returns the ClientName of a specific Client by ID.
+     * 
+     * @param id
+     * @return the name, or Room if id is -1, or [Unknown] if failed to find
+     */
+    public String getClientNameFromId(long id) {
+        if (id == Constants.DEFAULT_CLIENT_ID) {
+            return "Room";
+        }
+        if (knownClients.containsKey(id)) {
+            return knownClients.get(id).getClientName();
+        }
+        return "[Unknown]";
     }
 
     /**
@@ -225,45 +297,13 @@ public enum Client {
 
                 sendDoTurn(text);
                 wasCommand = true;
-            } else if (text.startsWith(Command.USE.command)) {
-                try {
-                    String data = text.replace(Command.USE.command, "").trim();
-                    String[] parts = data.split(",");
-                    int cardId = Integer.parseInt(parts[0].trim());
-                    int x = Integer.parseInt(parts[1].trim());
-                    int y = Integer.parseInt(parts[2].trim());
-
-                    if (myUser.getCards() == null || myUser.getCards().size() == 0) {
-                        LoggerUtil.INSTANCE.warning(TextFX.colorize("No cards in hand", Color.RED));
-                        return true;
-                    }
-                    Card card = myUser.getCards().stream()
-                            .filter(c -> c.getId() == cardId).findFirst().orElse(null);
-                    if (card == null) {
-                        LoggerUtil.INSTANCE.warning(TextFX.colorize("Card not found in hand", Color.RED));
-                        return true;
-                    }
-                    sendCardChoice(x, y, card);
-                } catch (NumberFormatException nfe) {
-                    LoggerUtil.INSTANCE
-                            .warning(TextFX.colorize("Invalid format, must be /use <cardId>,<x>,<y>", Color.RED));
-                    return true;
-                }
-                wasCommand = true;
             }
         }
         return wasCommand;
     }
 
     // Start Send*() methods
-    private void sendCardChoice(int x, int y, Card card) throws IOException {
-        CardsPayload payload = new CardsPayload();
-        payload.setCard(card);
-        payload.setPayloadType(PayloadType.CARD);
-        sendToServer(payload);
-    }
-
-    private void sendDoTurn(String text) throws IOException {
+    public void sendDoTurn(String text) throws IOException {
         // NOTE for now using ReadyPayload as it has the necessary properties
         // An actual turn may include other data for your project
         ReadyPayload rp = new ReadyPayload();
@@ -279,7 +319,7 @@ public enum Client {
      * 
      * @throws IOException
      */
-    private void sendReady() throws IOException {
+    public void sendReady() throws IOException {
         ReadyPayload rp = new ReadyPayload();
         rp.setReady(true); // <- techically not needed as we'll use the payload type as a trigger
         sendToServer(rp);
@@ -292,7 +332,7 @@ public enum Client {
      * @param roomAction (join, leave, create)
      * @throws IOException
      */
-    private void sendRoomAction(String roomName, RoomAction roomAction) throws IOException {
+    public void sendRoomAction(String roomName, RoomAction roomAction) throws IOException {
         Payload payload = new Payload();
         payload.setMessage(roomName);
         switch (roomAction) {
@@ -334,7 +374,7 @@ public enum Client {
      * 
      * @throws IOException
      */
-    private void sendDisconnect() throws IOException {
+    void sendDisconnect() throws IOException {
         Payload payload = new Payload();
         payload.setPayloadType(PayloadType.DISCONNECT);
         sendToServer(payload);
@@ -346,7 +386,7 @@ public enum Client {
      * @param message
      * @throws IOException
      */
-    private void sendMessage(String message) throws IOException {
+    public void sendMessage(String message) throws IOException {
         Payload payload = new Payload();
         payload.setMessage(message);
         payload.setPayloadType(PayloadType.MESSAGE);
@@ -467,20 +507,9 @@ public enum Client {
                 // note no data necessary as this is just a trigger
                 processResetTurn();
                 break;
-            case PayloadType.BOARD_DATA:
-                processBoardData(payload);
-                break;
-            case PayloadType.CELL:
-                processCell(payload);
-                break;
-            case PayloadType.HAND:
-                processMyHand(payload);
-                break;
-            case PayloadType.REMOVE_CARD:
-                processCardRemoval(payload);
-                break;
-            case PayloadType.CARD:
-                processCardAdd(payload);
+            case PayloadType.TIME:
+                TimerPayload timerPayload = (TimerPayload) payload;
+                processCurrentTimer(timerPayload.getTimerType(), timerPayload.getTime());
                 break;
             default:
                 LoggerUtil.INSTANCE.warning(TextFX.colorize("Unhandled payload type", Color.YELLOW));
@@ -490,76 +519,22 @@ public enum Client {
     }
 
     // Start process*() methods
-    private void processCardAdd(Payload payload) {
-        if (!(payload instanceof CardsPayload)) {
-            error("Invalid payload subclass for processCardAdd");
-            return;
-        }
-        CardsPayload cp = (CardsPayload) payload;
-        List<Card> cards = cp.getCards();
-        if (cards == null || cards.size() == 0) {
-            LoggerUtil.INSTANCE.warning("No cards found in payload");
-            return;
-        }
-        myUser.addCards(cards);
-        LoggerUtil.INSTANCE.info("My hand: " + myUser.handToString());
-    }
-
-    private void processCardRemoval(Payload payload) {
-        if (!(payload instanceof CardsPayload)) {
-            error("Invalid payload subclass for processCardRemove");
-            return;
-        }
-        CardsPayload cp = (CardsPayload) payload;
-        List<Card> cards = cp.getCards();
-        if (cards == null || cards.size() == 0) {
-            LoggerUtil.INSTANCE.warning("No cards found in payload");
-            return;
-        }
-        myUser.removeCard(cards.get(0));
-        LoggerUtil.INSTANCE.info("My hand: " + myUser.handToString());
-    }
-
-    private void processMyHand(Payload payload) {
-        if (!(payload instanceof CardsPayload)) {
-            error("Invalid payload subclass for processMyHand");
-            return;
-        }
-        CardsPayload cp = (CardsPayload) payload;
-        List<Card> cards = cp.getCards();
-        if (cards == null || cards.size() == 0) {
-            LoggerUtil.INSTANCE.warning("No cards found in payload");
-            return;
-        }
-        myUser.setCards(cards);
-        LoggerUtil.INSTANCE.info("My hand: " + myUser.handToString());
-    }
-
-    private void processCell(Payload payload) {
-        if (!(payload instanceof CellPayload)) {
-            error("Invalid payload subclass for processCell");
-            return;
-        }
-        CellPayload cp = (CellPayload) payload;
-        board.applyAction(cp.getX(), cp.getY(), cp.getValue());
-        LoggerUtil.INSTANCE.info("Updated Board: \n" + board.toString());
-    }
-
-    private void processBoardData(Payload payload) {
-        if (!(payload instanceof BoardPayload)) {
-            error("Invalid payload subclass for processBoardData");
-            return;
-        }
-        BoardPayload bp = (BoardPayload) payload;
-        board = new Board();
-        board.setSeed(bp.getSeed());
-        board.initialize(bp.getRows(), bp.getCols());
-        LoggerUtil.INSTANCE.info("Initialized Board: \n" + board.toString());
+    private void processCurrentTimer(TimerType timerType, int time) {
+        events.forEach(event -> {
+            if (event instanceof ITimeEvents) {
+                ((ITimeEvents) event).onTimerUpdate(timerType, time);
+            }
+        });
     }
 
     private void processResetTurn() {
         knownClients.values().forEach(cp -> cp.setTookTurn(false));
         System.out.println("Turn status reset for everyone");
+        events.forEach(event -> {
+            if (event instanceof ITurnEvent) {
+                ((ITurnEvent) event).onTookTurn(Constants.DEFAULT_CLIENT_ID, false);
+            }
+        });
     }
 
     private void processTurn(Payload payload) {
@@ -580,13 +555,28 @@ public enum Client {
             String message = String.format("%s %s their turn", cp.getDisplayName(),
                     cp.didTakeTurn() ? "took" : "reset");
             LoggerUtil.INSTANCE.info(message);
+            events.forEach(event -> {
+                if (event instanceof IMessageEvents) {
+                    ((IMessageEvents) event).onMessageReceive(Constants.GAME_EVENT_CHANNEL,
+                            String.format("%s[%s] finished their turn", cp.getClientName(), cp.getClientId()));
+                }
+            });
         }
-
+        events.forEach(event -> {
+            if (event instanceof ITurnEvent) {
+                ((ITurnEvent) event).onTookTurn(cp.getClientId(), cp.didTakeTurn());
+            }
+        });
     }
 
     private void processPhase(Payload payload) {
         currentPhase = Enum.valueOf(Phase.class, payload.getMessage());
         System.out.println(TextFX.colorize("Current phase is " + currentPhase.name(), Color.YELLOW));
+        events.forEach(event -> {
+            if (event instanceof IPhaseEvent) {
+                ((IPhaseEvent) event).onReceivePhase(currentPhase);
+            }
+        });
     }
 
     private void processResetReady() {
@@ -612,6 +602,11 @@ public enum Client {
                     String.format("%s is %s", cp.getDisplayName(),
                             rp.isReady() ? "ready" : "not ready"));
         }
+        events.forEach(event -> {
+            if (event instanceof IReadyEvent) {
+                ((IReadyEvent) event).onReceiveReady(cp.getClientId(), cp.isReady(), isQuiet);
+            }
+        });
     }
 
     private void processRoomsList(Payload payload) {
@@ -621,6 +616,11 @@ public enum Client {
         }
         RoomResultPayload rrp = (RoomResultPayload) payload;
         List<String> rooms = rrp.getRooms();
+        events.forEach(event -> {
+            if (event instanceof IRoomEvents) {
+                ((IRoomEvents) event).onReceiveRoomList(rooms, rrp.getMessage());
+            }
+        });
         if (rooms == null || rooms.size() == 0) {
             LoggerUtil.INSTANCE.warning(
                     TextFX.colorize("No rooms found matching your query",
@@ -641,9 +641,20 @@ public enum Client {
         myUser.setClientName(((ConnectionPayload) payload).getClientName());// confirmation from Server
         knownClients.put(myUser.getClientId(), myUser);
         LoggerUtil.INSTANCE.info(TextFX.colorize("Connected", Color.GREEN));
+        events.forEach(event -> {
+            if (event instanceof IConnectionEvents) {
+                ((IConnectionEvents) event).onReceiveClientId(myUser.getClientId());
+            }
+        });
     }
 
     private void processDisconnect(Payload payload) {
+        events.forEach(event -> {
+            if (event instanceof IConnectionEvents) {
+                ((IConnectionEvents) event).onClientDisconnect(payload.getClientId(),
+                        getClientNameFromId(payload.getClientId()));
+            }
+        });
         if (payload.getClientId() == myUser.getClientId()) {
             knownClients.clear();
             myUser.reset();
@@ -681,12 +692,25 @@ public enum Client {
                 if (connectionPayload.getMessage() != null) {
                     LoggerUtil.INSTANCE.info(TextFX.colorize(connectionPayload.getMessage(), Color.YELLOW));
                 }
-
+                events.forEach(event -> {
+                    if (event instanceof IRoomEvents) {
+                        ((IRoomEvents) event).onRoomAction(connectionPayload.getClientId(),
+                                connectionPayload.getClientName(),
+                                connectionPayload.getMessage(), false);
+                    }
+                });
                 break;
             case ROOM_JOIN:
                 if (connectionPayload.getMessage() != null) {
                     LoggerUtil.INSTANCE.info(TextFX.colorize(connectionPayload.getMessage(), Color.GREEN));
                 }
+                events.forEach(event -> {
+                    if (event instanceof IRoomEvents) {
+                        ((IRoomEvents) event).onRoomAction(connectionPayload.getClientId(),
+                                connectionPayload.getClientName(),
+                                connectionPayload.getMessage(), true);
+                    }
+                });
                 // cascade to manage knownClients
             case SYNC_CLIENT:
                 // add to map
@@ -695,6 +719,12 @@ public enum Client {
                     user.setClientId(connectionPayload.getClientId());
                     user.setClientName(connectionPayload.getClientName());
                     knownClients.put(connectionPayload.getClientId(), user);
+                    events.forEach(event -> {
+                        if (event instanceof IConnectionEvents) {
+                            ((IConnectionEvents) event).onSyncClient(connectionPayload.getClientId(),
+                                    connectionPayload.getClientName());
+                        }
+                    });
                 }
                 break;
             default:
@@ -705,10 +735,20 @@ public enum Client {
 
     private void processMessage(Payload payload) {
         LoggerUtil.INSTANCE.info(TextFX.colorize(payload.getMessage(), Color.BLUE));
+        events.forEach(event -> {
+            if (event instanceof IMessageEvents) {
+                ((IMessageEvents) event).onMessageReceive(payload.getClientId(), payload.getMessage());
+            }
+        });
     }
 
     private void processReverse(Payload payload) {
         LoggerUtil.INSTANCE.info(TextFX.colorize(payload.getMessage(), Color.PURPLE));
+        events.forEach(event -> {
+            if (event instanceof IMessageEvents) {
+                ((IMessageEvents) event).onMessageReceive(payload.getClientId(), payload.getMessage());
+            }
+        });
     }
     // End process*() methods
 
