@@ -400,6 +400,10 @@ public enum Client {
      * @throws IOException
      */
     private void sendClientName(String name) throws IOException {
+        if (myUser.getClientName() == null || myUser.getClientName().length() == 0) {
+            System.out.println(TextFX.colorize("Name must be set first via /name command", Color.RED));
+            return;
+        }
         ConnectionPayload payload = new ConnectionPayload();
         payload.setClientName(name);
         payload.setPayloadType(PayloadType.CLIENT_CONNECT);

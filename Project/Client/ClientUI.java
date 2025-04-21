@@ -88,6 +88,7 @@ public class ClientUI extends JFrame implements IConnectionEvents, IMessageEvent
         });
 
         setMinimumSize(new Dimension(400, 400));
+        setSize(getMinimumSize());
         setLocationRelativeTo(null); // Center the window
         menu = new Menu(this);
         this.setJMenuBar(menu);
@@ -132,6 +133,8 @@ public class ClientUI extends JFrame implements IConnectionEvents, IMessageEvent
                 if (Client.INSTANCE.getMyClientId() == Constants.DEFAULT_CLIENT_ID
                         && currentCard.ordinal() >= CardView.CHAT.ordinal()) {
                     show(CardView.CONNECT.name());
+                    setSize(getMinimumSize());
+                    revalidate();
                 }
                 break;
             }
@@ -184,7 +187,7 @@ public class ClientUI extends JFrame implements IConnectionEvents, IMessageEvent
             boolean isMe = clientId == Client.INSTANCE.getMyClientId();
             String message = String.format("*%s disconnected*",
                     isMe ? "You" : String.format("%s[%s]", clientName, clientId));
-                    chatGamePanel.getChatPanel().addText(message);
+            chatGamePanel.getChatPanel().addText(message);
             if (isMe) {
                 LoggerUtil.INSTANCE.info("I disconnected");
                 previous();
@@ -195,19 +198,24 @@ public class ClientUI extends JFrame implements IConnectionEvents, IMessageEvent
     @Override
     public void onMessageReceive(long clientId, String message) {
         if (currentCard.ordinal() >= CardView.CHAT.ordinal()) {
+            String clientName = Client.INSTANCE.getClientNameFromId(clientId);
             if (clientId < Constants.DEFAULT_CLIENT_ID) {
                 // Note: Planning to use < -1 as internal channels (see GameEventsPanel)
                 return;
             }
-            String clientName = Client.INSTANCE.getClientNameFromId(clientId);
-            chatGamePanel.getChatPanel().addText(String.format("%s[%s]: %s", clientName, clientId, message));
+            String name = clientId == Constants.DEFAULT_CLIENT_ID ? "Room"
+                    : String.format("%s[%s]", clientName, clientId);
+            chatGamePanel.getChatPanel().addText(String.format("%s: %s", name, message));
         }
     }
 
     @Override
     public void onReceiveClientId(long id) {
+        LoggerUtil.INSTANCE.fine("Received client id: " + id);
         show(CardView.CHAT_GAME_SCREEN.name());
         chatGamePanel.getChatPanel().addText("*You connected*");
+        setSize(new Dimension(600, 600));
+        revalidate();
     }
 
     @Override
@@ -244,7 +252,7 @@ public class ClientUI extends JFrame implements IConnectionEvents, IMessageEvent
                     /* 1st %s */ isMe ? "You" : String.format("%s[%s]", clientName, clientId),
                     /* 2nd %s */ isJoin ? "joined" : "left",
                     /* 3rd %s */ roomName == null ? "" : roomName); // added handling of null after the demo video
-                    chatGamePanel.getChatPanel().addText(message);
+            chatGamePanel.getChatPanel().addText(message);
             if (isJoin) {
                 roomLabel.setText("Room: " + roomName);
                 chatGamePanel.getChatPanel().addUserListItem(clientId, String.format("%s (%s)", clientName, clientId));

@@ -140,7 +140,7 @@ public class ChatPanel extends JPanel {
         this.add(input, BorderLayout.SOUTH);
 
         this.setName(CardView.CHAT.name());
-        //controls.addPanel(CardView.CHAT.name(), this);
+        // controls.addPanel(CardView.CHAT.name(), this);
 
         chatArea.addContainerListener(new ContainerListener() {
             @Override
@@ -172,15 +172,19 @@ public class ChatPanel extends JPanel {
         gbc.fill = GridBagConstraints.BOTH; // Fill both horizontally and vertically
         chatArea.add(Box.createVerticalGlue(), gbc);
 
-        /*scroll.addPropertyChangeListener(JSplitPane.DIVIDER_LOCATION_PROPERTY, new PropertyChangeListener() {
-            @Override
-            public void propertyChange(PropertyChangeEvent evt) {
-                SwingUtilities.invokeLater(()->
-                {
-                    resizeEditorPanes();
-                });
-            }
-        });*/
+        /*
+         * scroll.addPropertyChangeListener(JSplitPane.DIVIDER_LOCATION_PROPERTY, new
+         * PropertyChangeListener() {
+         * 
+         * @Override
+         * public void propertyChange(PropertyChangeEvent evt) {
+         * SwingUtilities.invokeLater(()->
+         * {
+         * resizeEditorPanes();
+         * });
+         * }
+         * });
+         */
 
         // Ensure editor panes resize when the scroll pane viewport changes
         scroll.getViewport().addComponentListener(new ComponentAdapter() {

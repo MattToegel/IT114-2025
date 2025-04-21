@@ -122,7 +122,7 @@ public class GameEventsPanel extends JPanel implements IPhaseEvent, IReadyEvent,
     @Override
     public void onReceiveReady(long clientId, boolean isReady, boolean isQuiet) {
         if (isQuiet) {
-            return;
+            return; // Ignore quiet updates
         }
         String clientName = Client.INSTANCE.getClientNameFromId(clientId);
         addText(String.format("%s[%s] is %s", clientName, clientId, isReady ? "ready" : "not ready"));
