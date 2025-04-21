@@ -57,6 +57,10 @@ public class ServerThread extends BaseServerThread {
     }
 
     // Start Send*() Methods
+    public boolean sendGameEvent(String str) {
+        return sendMessage(Constants.GAME_EVENT_CHANNEL, str);
+    }
+
     /**
      * Syncs the current time of a specific TimerType
      * 

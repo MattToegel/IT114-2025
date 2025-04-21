@@ -234,6 +234,8 @@ public class Room implements AutoCloseable {
         try {
             Server.INSTANCE.createRoom(roomName);
             Server.INSTANCE.joinRoom(roomName, sender);
+        } catch (IllegalArgumentException e) {
+            sender.sendMessage(Constants.DEFAULT_CLIENT_ID, "Room name cannot be empty");
         } catch (RoomNotFoundException e) {
             info("Room wasn't found (this shouldn't happen)");
             e.printStackTrace();

@@ -121,6 +121,9 @@ public enum Server {
      */
     protected void createRoom(String name) throws DuplicateRoomException {
         final String nameCheck = name.toLowerCase();
+        if (nameCheck.length() == 0) {
+            throw new IllegalArgumentException("Room name cannot be empty");
+        }
         if (rooms.containsKey(nameCheck)) {
             throw new DuplicateRoomException(String.format("Room %s already exists", name));
         }

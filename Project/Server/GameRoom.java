@@ -112,7 +112,8 @@ public class GameRoom extends BaseGameRoom {
     protected void onRoundStart() {
         LoggerUtil.INSTANCE.info("onRoundStart() start");
         round++;
-        relay(null, String.format("Round %d has started", round));
+        // relay(null, String.format("Round %d has started", round));
+        sendGameEvent("Round: " + round);
         resetRoundTimer();
         resetTurnStatus();
         LoggerUtil.INSTANCE.info("onRoundStart() end");
@@ -194,6 +195,30 @@ public class GameRoom extends BaseGameRoom {
     // end lifecycle methods
 
     // send/sync data to ServerUser(s)
+    private void sendGameEvent(String str) {
+        sendGameEvent(str, null);
+    }
+
+    private void sendGameEvent(String str, List<Long> targets) {
+        clientsInRoom.values().removeIf(spInRoom -> {
+            boolean canSend = false;
+            if (targets != null) {
+                if (targets.contains(spInRoom.getClientId())) {
+                    canSend = true;
+                }
+            } else {
+                canSend = true;
+            }
+            if (canSend) {
+                boolean failedToSend = !spInRoom.sendGameEvent(str);
+                if (failedToSend) {
+                    removeClient(spInRoom);
+                }
+                return failedToSend;
+            }
+            return false;
+        });
+    }
 
     private void sendResetTurnStatus() {
         clientsInRoom.values().forEach(spInRoom -> {
