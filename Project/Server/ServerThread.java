@@ -11,6 +11,7 @@ import Project.Common.LoggerUtil;
 import Project.Common.Payload;
 import Project.Common.PayloadType;
 import Project.Common.Phase;
+import Project.Common.PointsPayload;
 import Project.Common.ReadyPayload;
 import Project.Common.RoomAction;
 import Project.Common.RoomResultPayload;
@@ -57,6 +58,20 @@ public class ServerThread extends BaseServerThread {
     }
 
     // Start Send*() Methods
+    /**
+     * Syncs a specific client's points
+     * 
+     * @param clientId
+     * @param points
+     * @return
+     */
+    public boolean sendPointsUpdate(long clientId, int points) {
+        PointsPayload rp = new PointsPayload();
+        rp.setPoints(points);
+        rp.setClientId(clientId);
+        return sendToClient(rp);
+    }
+
     public boolean sendGameEvent(String str) {
         return sendMessage(Constants.GAME_EVENT_CHANNEL, str);
     }

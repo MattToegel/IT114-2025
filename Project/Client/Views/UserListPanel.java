@@ -201,12 +201,11 @@ public class UserListPanel extends JPanel implements IReadyEvent, IPointsEvent, 
     public void onPointsUpdate(long clientId, int points) {
         if (userItemsMap.containsKey(clientId)) {
             SwingUtilities.invokeLater(() -> {
-                if (clientId > Constants.DEFAULT_CLIENT_ID) {
-                    userItemsMap.get(clientId).setPoints(points);
-                } else {
-                    userItemsMap.values().forEach(u -> u.setPoints(-1));// reset all
-                }
+                userItemsMap.get(clientId).setPoints(points);
+
             });
+        } else if (clientId == Constants.DEFAULT_CLIENT_ID) {
+            userItemsMap.values().forEach(u -> u.setPoints(-1));// reset all
         }
     }
 

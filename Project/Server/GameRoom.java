@@ -3,6 +3,7 @@ package Project.Server;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Random;
 import java.util.stream.Collectors;
 
 import Project.Common.Constants;
@@ -195,6 +196,15 @@ public class GameRoom extends BaseGameRoom {
     // end lifecycle methods
 
     // send/sync data to ServerUser(s)
+    private void sendPointsUpdate(ServerThread sp) {
+        clientsInRoom.values().removeIf(spInRoom -> {
+            boolean failedToSend = !spInRoom.sendPointsUpdate(sp.getClientId(), sp.getPoints());
+            if (failedToSend) {
+                removeClient(spInRoom);
+            }
+            return failedToSend;
+        });
+    }
     private void sendGameEvent(String str) {
         sendGameEvent(str, null);
     }
@@ -339,10 +349,14 @@ public class GameRoom extends BaseGameRoom {
                 currentUser.sendMessage(Constants.DEFAULT_CLIENT_ID, "You have already taken your turn this round");
                 return;
             }
+            int points = new Random().nextInt(4) == 3 ? 1 : 0;
+            sendGameEvent(String.format("%s %s", currentUser.getDisplayName(),
+                    points > 0 ? "gained a point" : "didn't gain a point"));
+            currentUser.changePoints(points);
             currentUser.setTookTurn(true);
             // TODO handle example text possibly or other turn related intention from client
             sendTurnStatus(currentUser, currentUser.didTakeTurn());
-
+            sendPointsUpdate(currentUser);
             onTurnEnd();
         } catch (NotPlayersTurnException e) {
             currentUser.sendMessage(Constants.DEFAULT_CLIENT_ID, "It's not your turn");
