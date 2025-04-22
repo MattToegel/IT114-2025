@@ -124,8 +124,8 @@ public class GameEventsPanel extends JPanel implements IPhaseEvent, IReadyEvent,
         if (isQuiet) {
             return; // Ignore quiet updates
         }
-        String clientName = Client.INSTANCE.getClientNameFromId(clientId);
-        addText(String.format("%s[%s] is %s", clientName, clientId, isReady ? "ready" : "not ready"));
+        String displayName = Client.INSTANCE.getDisplayNameFromId(clientId);
+        addText(String.format("%s is %s", displayName, clientId, isReady ? "ready" : "not ready"));
     }
 
     @Override
@@ -137,7 +137,11 @@ public class GameEventsPanel extends JPanel implements IPhaseEvent, IReadyEvent,
 
     @Override
     public void onTimerUpdate(TimerType timerType, int time) {
-        timerText.setText(String.format("%s timer: %s", timerType.name(), time));
-        timerText.setVisible(time > 0);
+        if (time >= 0) {
+            timerText.setText(String.format("%s timer: %s", timerType.name(), time));
+        } else {
+            timerText.setText(" ");
+        }
+        timerText.setVisible(true);
     }
 }

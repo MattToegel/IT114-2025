@@ -39,6 +39,7 @@ public class GameRoom extends BaseGameRoom {
         syncCurrentPhase(sp);
         syncReadyStatus(sp);
         syncTurnStatus(sp);
+        syncPlayerPoints(sp);
     }
 
     /** {@inheritDoc} */
@@ -60,6 +61,7 @@ public class GameRoom extends BaseGameRoom {
     }
 
     // timer handlers
+    @SuppressWarnings("unused")
     private void startRoundTimer() {
         roundTimer = new TimedEvent(30, () -> onRoundEnd());
         roundTimer.setTickCallback((time) -> {
@@ -148,7 +150,7 @@ public class GameRoom extends BaseGameRoom {
         resetTurnTimer(); // reset timer if turn ended without the time expiring
         try {
             ServerThread currentPlayer = getCurrentPlayer();
-            if (currentPlayer.getPoints() >= 10) {
+            if (currentPlayer.getPoints() >= 3) {
                 relay(null, String.format("%s has won the game!", currentPlayer.getDisplayName()));
                 LoggerUtil.INSTANCE.info("onTurnEnd() end"); // added here for consistent lifecycle logs
                 onSessionEnd();
@@ -190,21 +192,37 @@ public class GameRoom extends BaseGameRoom {
         resetTurnStatus();
         resetReadyStatus();
         resetTurnStatus();
+        clientsInRoom.values().stream().forEach(s -> s.setPoints(0));
         changePhase(Phase.READY);
         LoggerUtil.INSTANCE.info("onSessionEnd() end");
     }
     // end lifecycle methods
 
     // send/sync data to ServerUser(s)
-    private void sendPointsUpdate(ServerThread sp) {
+    private void syncPlayerPoints(ServerThread incomingClient) {
+        clientsInRoom.values().forEach(serverUser -> {
+            if (serverUser.getClientId() != incomingClient.getClientId()) {
+                boolean failedToSync = !incomingClient.sendPlayerPoints(serverUser.getClientId(),
+                        serverUser.getPoints());
+                if (failedToSync) {
+                    LoggerUtil.INSTANCE.warning(
+                            String.format("Removing disconnected %s from list", serverUser.getDisplayName()));
+                    disconnect(serverUser);
+                }
+            }
+        });
+    }
+
+    private void sendPlayerPoints(ServerThread sp) {
         clientsInRoom.values().removeIf(spInRoom -> {
-            boolean failedToSend = !spInRoom.sendPointsUpdate(sp.getClientId(), sp.getPoints());
+            boolean failedToSend = !spInRoom.sendPlayerPoints(sp.getClientId(), sp.getPoints());
             if (failedToSend) {
                 removeClient(spInRoom);
             }
             return failedToSend;
         });
     }
+
     private void sendGameEvent(String str) {
         sendGameEvent(str, null);
     }
@@ -309,6 +327,7 @@ public class GameRoom extends BaseGameRoom {
         return turnOrder.indexOf(getCurrentPlayer()) == (turnOrder.size() - 1);
     }
 
+    @SuppressWarnings("unused")
     private void checkAllTookTurn() {
         int numReady = clientsInRoom.values().stream()
                 .filter(sp -> sp.isReady())
@@ -352,11 +371,15 @@ public class GameRoom extends BaseGameRoom {
             int points = new Random().nextInt(4) == 3 ? 1 : 0;
             sendGameEvent(String.format("%s %s", currentUser.getDisplayName(),
                     points > 0 ? "gained a point" : "didn't gain a point"));
-            currentUser.changePoints(points);
+            if (points > 0) {
+                currentUser.changePoints(points);
+                sendPlayerPoints(currentUser);
+            }
+
             currentUser.setTookTurn(true);
             // TODO handle example text possibly or other turn related intention from client
             sendTurnStatus(currentUser, currentUser.didTakeTurn());
-            sendPointsUpdate(currentUser);
+
             onTurnEnd();
         } catch (NotPlayersTurnException e) {
             currentUser.sendMessage(Constants.DEFAULT_CLIENT_ID, "It's not your turn");

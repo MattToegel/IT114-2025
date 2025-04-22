@@ -65,7 +65,7 @@ public class ServerThread extends BaseServerThread {
      * @param points
      * @return
      */
-    public boolean sendPointsUpdate(long clientId, int points) {
+    public boolean sendPlayerPoints(long clientId, int points) {
         PointsPayload rp = new PointsPayload();
         rp.setPoints(points);
         rp.setClientId(clientId);
@@ -123,7 +123,7 @@ public class ServerThread extends BaseServerThread {
         return sendToClient(rp);
     }
 
-    public boolean sendReadyStatus(long clientId, boolean isReady) {
+    public synchronized boolean sendReadyStatus(long clientId, boolean isReady) {
         return sendReadyStatus(clientId, isReady, false);
     }
 
@@ -159,7 +159,7 @@ public class ServerThread extends BaseServerThread {
     }
 
     protected boolean sendResetUserList() {
-        return sendClientInfo(Constants.DEFAULT_CLIENT_ID, null, RoomAction.JOIN);
+        return sendClientInfo(Constants.DEFAULT_CLIENT_ID, null, null, RoomAction.JOIN);
     }
 
     /**
@@ -170,8 +170,8 @@ public class ServerThread extends BaseServerThread {
      * @param action     RoomAction of Join or Leave
      * @return true for successful send
      */
-    protected boolean sendClientInfo(long clientId, String clientName, RoomAction action) {
-        return sendClientInfo(clientId, clientName, action, false);
+    protected boolean sendClientInfo(long clientId, String clientName, String roomName, RoomAction action) {
+        return sendClientInfo(clientId, clientName, roomName, action, false);
     }
 
     /**
@@ -184,7 +184,8 @@ public class ServerThread extends BaseServerThread {
      *                   sync)
      * @return true for successful send
      */
-    protected boolean sendClientInfo(long clientId, String clientName, RoomAction action, boolean isSync) {
+    protected boolean sendClientInfo(long clientId, String clientName, String roomName, RoomAction action,
+            boolean isSync) {
         ConnectionPayload payload = new ConnectionPayload();
         switch (action) {
             case JOIN:
@@ -201,6 +202,7 @@ public class ServerThread extends BaseServerThread {
         }
         payload.setClientId(clientId);
         payload.setClientName(clientName);
+        payload.setMessage(roomName);// pass room name
         return sendToClient(payload);
     }
 
@@ -310,6 +312,10 @@ public class ServerThread extends BaseServerThread {
 
     protected void changePoints(int points) {
         this.user.changePoints(points);
+    }
+
+    protected void setPoints(int points) {
+        this.user.setPoints(points);
     }
 
     @Override

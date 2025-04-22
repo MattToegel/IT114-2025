@@ -2,7 +2,6 @@ package Project.Client.Views;
 
 import java.awt.BorderLayout;
 import java.awt.Color;
-import java.awt.Dimension;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
 import java.awt.Insets;
@@ -25,7 +24,6 @@ import Project.Client.Interfaces.IReadyEvent;
 import Project.Client.Interfaces.ITurnEvent;
 import Project.Common.Constants;
 import Project.Common.LoggerUtil;
-import Project.Common.User;
 
 /**
  * UserListPanel represents a UI component that displays a list of users.
@@ -118,7 +116,7 @@ public class UserListPanel extends JPanel implements IReadyEvent, IPointsEvent, 
             gbc.weightx = 1; // Let the component grow horizontally to fill the space
             gbc.anchor = GridBagConstraints.NORTH; // Anchor to the top
             gbc.fill = GridBagConstraints.BOTH;
-            gbc.insets = new Insets(0, 0, 5, 0); // Add spacing between users
+            gbc.insets = new Insets(0, 0, 5, 5); // Add spacing between users
 
             // Remove the last glue component if it exists
             if (lastConstraints != null) {
@@ -141,20 +139,6 @@ public class UserListPanel extends JPanel implements IReadyEvent, IPointsEvent, 
     }
 
     /**
-     * Adjusts the width of all user list items.
-     */
-    private void adjustUserListItemsWidth() {
-        SwingUtilities.invokeLater(() -> {
-            for (UserListItem item : userItemsMap.values()) {
-                item.setPreferredSize(
-                        new Dimension(userListArea.getWidth() - 20, item.getPreferredSize().height));
-            }
-            userListArea.revalidate();
-            userListArea.repaint();
-        });
-    }
-
-    /**
      * Removes a user from the list.
      *
      * @param clientId The ID of the client to be removed.
@@ -162,11 +146,15 @@ public class UserListPanel extends JPanel implements IReadyEvent, IPointsEvent, 
     protected void removeUserListItem(long clientId) {
         SwingUtilities.invokeLater(() -> {
             LoggerUtil.INSTANCE.info("Removing user list item for id " + clientId);
-            UserListItem item = userItemsMap.remove(clientId); // Remove from the map
-            if (item != null) {
-                userListArea.remove(item);
-                userListArea.revalidate();
-                userListArea.repaint();
+            try {
+                UserListItem item = userItemsMap.remove(clientId); // Remove from the map
+                if (item != null) {
+                    userListArea.remove(item);
+                    userListArea.revalidate();
+                    userListArea.repaint();
+                }
+            } catch (Exception e) {
+                LoggerUtil.INSTANCE.severe("Error removing user list item", e);
             }
         });
     }
@@ -177,10 +165,14 @@ public class UserListPanel extends JPanel implements IReadyEvent, IPointsEvent, 
     protected void clearUserList() {
         SwingUtilities.invokeLater(() -> {
             LoggerUtil.INSTANCE.info("Clearing user list");
-            userItemsMap.clear(); // Clear the map
-            userListArea.removeAll();
-            userListArea.revalidate();
-            userListArea.repaint();
+            try {
+                userItemsMap.clear(); // Clear the map
+                userListArea.removeAll();
+                userListArea.revalidate();
+                userListArea.repaint();
+            } catch (Exception e) {
+                LoggerUtil.INSTANCE.severe("Error clearing user list", e);
+            }
         });
     }
 
@@ -201,11 +193,21 @@ public class UserListPanel extends JPanel implements IReadyEvent, IPointsEvent, 
     public void onPointsUpdate(long clientId, int points) {
         if (userItemsMap.containsKey(clientId)) {
             SwingUtilities.invokeLater(() -> {
-                userItemsMap.get(clientId).setPoints(points);
+                try {
+                    userItemsMap.get(clientId).setPoints(points);
+                } catch (Exception e) {
+                    LoggerUtil.INSTANCE.severe("Error setting user item", e);
+                }
 
             });
         } else if (clientId == Constants.DEFAULT_CLIENT_ID) {
-            userItemsMap.values().forEach(u -> u.setPoints(-1));// reset all
+            SwingUtilities.invokeLater(() -> {
+                try {
+                    userItemsMap.values().forEach(u -> u.setPoints(-1));// reset all
+                } catch (Exception e) {
+                    LoggerUtil.INSTANCE.severe("Error resetting user items", e);
+                }
+            });
         }
     }
 
@@ -213,11 +215,19 @@ public class UserListPanel extends JPanel implements IReadyEvent, IPointsEvent, 
     public void onReceiveReady(long clientId, boolean isReady, boolean isQuiet) {
         if (clientId == Constants.DEFAULT_CLIENT_ID) {
             SwingUtilities.invokeLater(() -> {
-                userItemsMap.values().forEach(u -> u.setTurn(false));// reset all
+                try {
+                    userItemsMap.values().forEach(u -> u.setTurn(false));// reset all
+                } catch (Exception e) {
+                    LoggerUtil.INSTANCE.severe("Error resetting user items", e);
+                }
             });
         } else if (userItemsMap.containsKey(clientId)) {
             SwingUtilities.invokeLater(() -> {
-                userItemsMap.get(clientId).setTurn(isReady, Color.GRAY);
+                try {
+                    userItemsMap.get(clientId).setTurn(isReady, Color.GRAY);
+                } catch (Exception e) {
+                    LoggerUtil.INSTANCE.severe("Error setting user item", e);
+                }
             });
         }
     }

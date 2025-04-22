@@ -8,6 +8,7 @@ import Project.Client.CardView;
 import Project.Client.Interfaces.ICardControls;
 
 public class Menu extends JMenuBar {
+    @SuppressWarnings("unused")
     public Menu(ICardControls controls) {
         JMenu roomsMenu = new JMenu("Rooms");
         JMenuItem roomsSearch = new JMenuItem("Search");

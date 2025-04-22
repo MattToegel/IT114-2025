@@ -28,6 +28,7 @@ public class ConnectionPanel extends JPanel {
      * 
      * @param controls the ICardControls to handle card navigation.
      */
+    @SuppressWarnings("unused")
     public ConnectionPanel(ICardControls controls) {
         super(new BorderLayout(10, 10)); // Set BorderLayout with gaps
 

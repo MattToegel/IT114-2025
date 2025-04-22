@@ -12,7 +12,7 @@ public interface IConnectionEvents extends IClientEvents {
      * @param id         The client ID.
      * @param clientName The client name.
      */
-    void onClientDisconnect(long id, String clientName);
+    void onClientDisconnect(long id);
 
     /**
      * Received the server-given ID for our client reference.
@@ -20,14 +20,6 @@ public interface IConnectionEvents extends IClientEvents {
      * @param id The client ID.
      */
     void onReceiveClientId(long id);
-
-    /**
-     * Used to sync existing clients.
-     *
-     * @param id         The client ID.
-     * @param clientName The client name.
-     */
-    void onSyncClient(long id, String clientName);
 
     /**
      * Triggered when we need to clear the user list, likely during a room

@@ -20,5 +20,5 @@ public interface IRoomEvents extends IClientEvents {
      *
      * @param roomName The room name.
      */
-    void onRoomAction(long clientId, String clientName, String roomName, boolean isJoin);
+    void onRoomAction(long clientId, String roomName, boolean isJoin, boolean isQuiet);
 }

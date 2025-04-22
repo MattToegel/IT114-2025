@@ -41,6 +41,7 @@ public class RoomsPanel extends JPanel {
      * 
      * @param controls The card controls interface to handle navigation.
      */
+    @SuppressWarnings("unused")
     public RoomsPanel(ICardControls controls) {
         super(new BorderLayout(10, 10));
         container = new JPanel();

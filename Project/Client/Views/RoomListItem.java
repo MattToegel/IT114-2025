@@ -20,6 +20,7 @@ public class RoomListItem extends JPanel {
      * @param room   - Name of room to show on the UI.
      * @param onJoin - Callback to trigger when the button is clicked.
      */
+    @SuppressWarnings("unused")
     public RoomListItem(String room, Consumer<String> onJoin) {
         this.setLayout(new BoxLayout(this, BoxLayout.X_AXIS));
 

@@ -27,6 +27,7 @@ public class GamePanel extends JPanel implements IRoomEvents, IPhaseEvent {
     private static final String PLAY_PANEL = "PLAY";// example panel for this lesson
     JPanel buttonPanel = new JPanel();
 
+    @SuppressWarnings("unused")
     public GamePanel(ICardControls controls) {
         super(new BorderLayout());
 
@@ -81,7 +82,7 @@ public class GamePanel extends JPanel implements IRoomEvents, IPhaseEvent {
     }
 
     @Override
-    public void onRoomAction(long clientId, String clientName, String roomName, boolean isJoin) {
+    public void onRoomAction(long clientId, String roomName, boolean isJoin, boolean isQuiet) {
         if (Constants.LOBBY.equals(roomName) && isJoin) {
             setVisible(false);
             revalidate();

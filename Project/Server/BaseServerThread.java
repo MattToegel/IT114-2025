@@ -6,6 +6,7 @@ import java.io.ObjectOutputStream;
 import java.net.Socket;
 
 import Project.Common.Payload;
+import Project.Common.PayloadType;
 import Project.Common.User;
 
 /**
@@ -113,7 +114,12 @@ public abstract class BaseServerThread extends Thread {
             return true;
         }
         try {
-            info("Sending to client: " + payload);
+            // added to reduce log spam
+            boolean ignoreTimePayloads = true;
+            if (!(ignoreTimePayloads && payload.getPayloadType() == PayloadType.TIME)) {
+                info("Sending to client: " + payload);
+            }
+
             out.writeObject(payload);
             out.flush();
             return true;

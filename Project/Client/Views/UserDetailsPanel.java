@@ -25,6 +25,7 @@ public class UserDetailsPanel extends JPanel {
      * 
      * @param controls The card controls interface to handle navigation.
      */
+    @SuppressWarnings("unused")
     public UserDetailsPanel(ICardControls controls) {
         super(new BorderLayout(10, 10));
 

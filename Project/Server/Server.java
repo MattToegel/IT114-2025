@@ -96,7 +96,7 @@ public enum Server {
      * 
      * @param serverThread
      */
-    private void onServerThreadInitialized(ServerThread serverThread) {
+    private synchronized void onServerThreadInitialized(ServerThread serverThread) {
         // Generate Server controlled clientId
         nextClientId = Math.max(++nextClientId, 1);
         serverThread.setClientId(nextClientId);

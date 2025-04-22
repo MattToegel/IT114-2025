@@ -49,6 +49,7 @@ public class ChatPanel extends JPanel {
      * 
      * @param controls The controls to manage card transitions.
      */
+    @SuppressWarnings("unused")
     public ChatPanel(ICardControls controls) {
         super(new BorderLayout(10, 10));
 
@@ -228,7 +229,7 @@ public class ChatPanel extends JPanel {
      */
     public void addText(String text) {
         SwingUtilities.invokeLater(() -> {
-            JEditorPane textContainer = new JEditorPane("text/plain", text);
+            JEditorPane textContainer = new JEditorPane("text/html", text);
             textContainer.setEditable(false);
             textContainer.setBorder(BorderFactory.createEmptyBorder());
 
@@ -251,8 +252,8 @@ public class ChatPanel extends JPanel {
             gbc.gridx = 0; // Column index 0
             gbc.gridy = GridBagConstraints.RELATIVE; // Automatically move to the next row
             gbc.weightx = 1; // Let the component grow horizontally to fill the space
-            gbc.fill = GridBagConstraints.HORIZONTAL; // Fill horizontally
-            gbc.insets = new Insets(0, 0, 5, 0); // Add spacing between messages
+            gbc.fill = GridBagConstraints.BOTH; // Fill horizontally
+            gbc.insets = new Insets(0, 0, 5, 5); // Add spacing between messages
 
             chatArea.add(textContainer, gbc);
             chatArea.revalidate();

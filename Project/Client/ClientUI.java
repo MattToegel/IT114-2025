@@ -54,7 +54,7 @@ public class ClientUI extends JFrame implements IConnectionEvents, IMessageEvent
         LoggerUtil.LoggerConfig config = new LoggerUtil.LoggerConfig();
         config.setFileSizeLimit(2048 * 1024); // 2MB
         config.setFileCount(1);
-        config.setLogLocation("client.log");
+        config.setLogLocation("client-ui.log");
         // Set the logger configuration
         LoggerUtil.INSTANCE.setConfig(config);
     }
@@ -72,7 +72,6 @@ public class ClientUI extends JFrame implements IConnectionEvents, IMessageEvent
         cardContainer.setLayout(card);
         container.add(roomLabel, BorderLayout.NORTH);
         container.add(cardContainer, BorderLayout.CENTER);
-
         cardContainer.addComponentListener(new ComponentAdapter() {
             @Override
             public void componentResized(ComponentEvent e) {
@@ -176,20 +175,34 @@ public class ClientUI extends JFrame implements IConnectionEvents, IMessageEvent
 
     public static void main(String[] args) {
         // TODO update with your UCID instead of mine
-        SwingUtilities.invokeLater(() -> new ClientUI("MT85-Client"));
+        // Your test or app entry point
+
+        SwingUtilities.invokeLater(() -> {
+
+            try {
+
+                new ClientUI("MT85-Client");
+
+            } catch (Throwable t) {
+                LoggerUtil.INSTANCE.severe("Unhandled exception in main thread", t);
+            }
+        });
+
     }
+
     // Interface methods start
 
     @Override
-    public void onClientDisconnect(long clientId, String clientName) {
+    public void onClientDisconnect(long clientId) {
         if (currentCard.ordinal() >= CardView.CHAT.ordinal()) {
             chatGamePanel.getChatPanel().removeUserListItem(clientId);
             boolean isMe = clientId == Client.INSTANCE.getMyClientId();
             String message = String.format("*%s disconnected*",
-                    isMe ? "You" : String.format("%s[%s]", clientName, clientId));
+                    isMe ? "You" : Client.INSTANCE.getDisplayNameFromId(clientId));
             chatGamePanel.getChatPanel().addText(message);
             if (isMe) {
                 LoggerUtil.INSTANCE.info("I disconnected");
+                roomLabel.setText(""); // reset label
                 previous();
             }
         }
@@ -198,13 +211,16 @@ public class ClientUI extends JFrame implements IConnectionEvents, IMessageEvent
     @Override
     public void onMessageReceive(long clientId, String message) {
         if (currentCard.ordinal() >= CardView.CHAT.ordinal()) {
-            String clientName = Client.INSTANCE.getClientNameFromId(clientId);
+
             if (clientId < Constants.DEFAULT_CLIENT_ID) {
                 // Note: Planning to use < -1 as internal channels (see GameEventsPanel)
                 return;
             }
-            String name = clientId == Constants.DEFAULT_CLIENT_ID ? "Room"
-                    : String.format("%s[%s]", clientName, clientId);
+            String displayName = Client.INSTANCE.getDisplayNameFromId(clientId);
+            // added color to differentiate between room and user messages
+            String name = clientId == Constants.DEFAULT_CLIENT_ID ? "<font color=blue>Room</font>"
+                    : String.format("<font color=purple>%s</font>", displayName);
+
             chatGamePanel.getChatPanel().addText(String.format("%s: %s", name, message));
         }
     }
@@ -224,13 +240,6 @@ public class ClientUI extends JFrame implements IConnectionEvents, IMessageEvent
     }
 
     @Override
-    public void onSyncClient(long clientId, String clientName) {
-        if (currentCard.ordinal() >= CardView.CHAT.ordinal()) {
-            chatGamePanel.getChatPanel().addUserListItem(clientId, String.format("%s (%s)", clientName, clientId));
-        }
-    }
-
-    @Override
     public void onReceiveRoomList(List<String> rooms, String message) {
         roomsPanel.removeAllRooms();
         if (message != null && !message.isEmpty()) {
@@ -244,23 +253,32 @@ public class ClientUI extends JFrame implements IConnectionEvents, IMessageEvent
     }
 
     @Override
-    public void onRoomAction(long clientId, String clientName, String roomName, boolean isJoin) {
+    public void onRoomAction(long clientId, String roomName, boolean isJoin, boolean isQuiet) {
         LoggerUtil.INSTANCE.info("Current card: " + currentCard.name());
         if (currentCard.ordinal() >= CardView.CHAT.ordinal()) {
-            boolean isMe = clientId == Client.INSTANCE.getMyClientId();
-            String message = String.format("*%s %s the Room %s*",
-                    /* 1st %s */ isMe ? "You" : String.format("%s[%s]", clientName, clientId),
-                    /* 2nd %s */ isJoin ? "joined" : "left",
-                    /* 3rd %s */ roomName == null ? "" : roomName); // added handling of null after the demo video
-            chatGamePanel.getChatPanel().addText(message);
+            // handle reset
+            if (clientId == Constants.DEFAULT_CLIENT_ID) {
+                chatGamePanel.getChatPanel().clearUserList();
+                return;
+            }
+            String displayName = Client.INSTANCE.getDisplayNameFromId(clientId);
             if (isJoin) {
                 roomLabel.setText("Room: " + roomName);
-                chatGamePanel.getChatPanel().addUserListItem(clientId, String.format("%s (%s)", clientName, clientId));
+                chatGamePanel.getChatPanel().addUserListItem(clientId, displayName);
             } else {
                 chatGamePanel.getChatPanel().removeUserListItem(clientId);
             }
-
+            // generate message if not quiet sync
+            if (!isQuiet) {
+                boolean isMe = clientId == Client.INSTANCE.getMyClientId();
+                String message = String.format("*%s %s the Room %s*",
+                        /* 1st %s */ isMe ? "You" : displayName,
+                        /* 2nd %s */ isJoin ? "joined" : "left",
+                        /* 3rd %s */ roomName == null ? "" : roomName); // added handling of null after the demo video
+                chatGamePanel.getChatPanel().addText(message);
+            }
         }
+
     }
 
     // Interface methods end
