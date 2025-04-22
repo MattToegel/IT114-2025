@@ -546,11 +546,15 @@ public enum Client {
         int points = pp.getPoints();
         if (knownClients.containsKey(targetId)) {
             knownClients.get(targetId).setPoints(points);
-            events.stream().forEach(event -> {
-                if (event instanceof IPointsEvent) {
-                    ((IPointsEvent) event).onPointsUpdate(targetId, points);
-                }
-            });
+            try {
+                events.stream().forEach(event -> {
+                    if (event instanceof IPointsEvent) {
+                        ((IPointsEvent) event).onPointsUpdate(targetId, points);
+                    }
+                });
+            } catch (Exception e) {
+                LoggerUtil.INSTANCE.severe("Error processing points", e);
+            }
         }
     }
 
@@ -560,21 +564,29 @@ public enum Client {
             return;
         }
         TimerPayload timerPayload = (TimerPayload) payload;
-        events.forEach(event -> {
-            if (event instanceof ITimeEvents) {
-                ((ITimeEvents) event).onTimerUpdate(timerPayload.getTimerType(), timerPayload.getTime());
-            }
-        });
+        try {
+            events.forEach(event -> {
+                if (event instanceof ITimeEvents) {
+                    ((ITimeEvents) event).onTimerUpdate(timerPayload.getTimerType(), timerPayload.getTime());
+                }
+            });
+        } catch (Exception e) {
+            LoggerUtil.INSTANCE.severe("Error processing current timer", e);
+        }
     }
 
     private void processResetTurn() {
         knownClients.values().forEach(cp -> cp.setTookTurn(false));
         System.out.println("Turn status reset for everyone");
-        events.forEach(event -> {
-            if (event instanceof ITurnEvent) {
-                ((ITurnEvent) event).onTookTurn(Constants.DEFAULT_CLIENT_ID, false);
-            }
-        });
+        try {
+            events.forEach(event -> {
+                if (event instanceof ITurnEvent) {
+                    ((ITurnEvent) event).onTookTurn(Constants.DEFAULT_CLIENT_ID, false);
+                }
+            });
+        } catch (Exception e) {
+            LoggerUtil.INSTANCE.severe("Error processing reset turn", e);
+        }
     }
 
     private void processTurn(Payload payload) {
@@ -602,21 +614,29 @@ public enum Client {
                 }
             });
         }
-        events.forEach(event -> {
-            if (event instanceof ITurnEvent) {
-                ((ITurnEvent) event).onTookTurn(cp.getClientId(), cp.didTakeTurn());
-            }
-        });
+        try {
+            events.forEach(event -> {
+                if (event instanceof ITurnEvent) {
+                    ((ITurnEvent) event).onTookTurn(cp.getClientId(), cp.didTakeTurn());
+                }
+            });
+        } catch (Exception e) {
+            LoggerUtil.INSTANCE.severe("Error processing turn", e);
+        }
     }
 
     private void processPhase(Payload payload) {
         currentPhase = Enum.valueOf(Phase.class, payload.getMessage());
         System.out.println(TextFX.colorize("Current phase is " + currentPhase.name(), Color.YELLOW));
-        events.forEach(event -> {
-            if (event instanceof IPhaseEvent) {
-                ((IPhaseEvent) event).onReceivePhase(currentPhase);
-            }
-        });
+        try {
+            events.forEach(event -> {
+                if (event instanceof IPhaseEvent) {
+                    ((IPhaseEvent) event).onReceivePhase(currentPhase);
+                }
+            });
+        } catch (Exception e) {
+            LoggerUtil.INSTANCE.severe("Error processing phase", e);
+        }
     }
 
     private void processResetReady() {
@@ -626,15 +646,19 @@ public enum Client {
             cp.setPoints(0);
             cp.setTookTurn(false);
         });
-        events.forEach(event -> {
-            if (event instanceof IReadyEvent) {
-                ((IReadyEvent) event).onReceiveReady(Constants.DEFAULT_CLIENT_ID, false, true);
-            } else if (event instanceof ITurnEvent) {
-                ((ITurnEvent) event).onTookTurn(Constants.DEFAULT_CLIENT_ID, false);
-            } else if (event instanceof IPointsEvent) {
-                ((IPointsEvent) event).onPointsUpdate(Constants.DEFAULT_CLIENT_ID, -1);
-            }
-        });
+        try {
+            events.forEach(event -> {
+                if (event instanceof IReadyEvent) {
+                    ((IReadyEvent) event).onReceiveReady(Constants.DEFAULT_CLIENT_ID, false, true);
+                } else if (event instanceof ITurnEvent) {
+                    ((ITurnEvent) event).onTookTurn(Constants.DEFAULT_CLIENT_ID, false);
+                } else if (event instanceof IPointsEvent) {
+                    ((IPointsEvent) event).onPointsUpdate(Constants.DEFAULT_CLIENT_ID, -1);
+                }
+            });
+        } catch (Exception e) {
+            LoggerUtil.INSTANCE.severe("Error processing reset ready", e);
+        }
         System.out.println("Ready status reset for everyone");
     }
 
@@ -675,11 +699,15 @@ public enum Client {
         }
         RoomResultPayload rrp = (RoomResultPayload) payload;
         List<String> rooms = rrp.getRooms();
-        events.forEach(event -> {
-            if (event instanceof IRoomEvents) {
-                ((IRoomEvents) event).onReceiveRoomList(rooms, rrp.getMessage());
-            }
-        });
+        try {
+            events.forEach(event -> {
+                if (event instanceof IRoomEvents) {
+                    ((IRoomEvents) event).onReceiveRoomList(rooms, rrp.getMessage());
+                }
+            });
+        } catch (Exception e) {
+            LoggerUtil.INSTANCE.severe("Error processing room list", e);
+        }
         if (rooms == null || rooms.size() == 0) {
             LoggerUtil.INSTANCE.warning(
                     TextFX.colorize("No rooms found matching your query",
@@ -700,19 +728,27 @@ public enum Client {
         myUser.setClientName(((ConnectionPayload) payload).getClientName());// confirmation from Server
         knownClients.put(myUser.getClientId(), myUser);
         LoggerUtil.INSTANCE.info(TextFX.colorize("Connected", Color.GREEN));
-        events.forEach(event -> {
-            if (event instanceof IConnectionEvents) {
-                ((IConnectionEvents) event).onReceiveClientId(myUser.getClientId());
-            }
-        });
+        try {
+            events.forEach(event -> {
+                if (event instanceof IConnectionEvents) {
+                    ((IConnectionEvents) event).onReceiveClientId(myUser.getClientId());
+                }
+            });
+        } catch (Exception e) {
+            LoggerUtil.INSTANCE.severe("Error processing client data", e);
+        }
     }
 
     private void processDisconnect(Payload payload) {
-        events.forEach(event -> {
-            if (event instanceof IConnectionEvents) {
-                ((IConnectionEvents) event).onClientDisconnect(payload.getClientId());
-            }
-        });
+        try {
+            events.forEach(event -> {
+                if (event instanceof IConnectionEvents) {
+                    ((IConnectionEvents) event).onClientDisconnect(payload.getClientId());
+                }
+            });
+        } catch (Exception e) {
+            LoggerUtil.INSTANCE.severe("Error processing disconnect", e);
+        }
         if (payload.getClientId() == myUser.getClientId()) {
             knownClients.clear();
             myUser.reset();
@@ -738,15 +774,19 @@ public enum Client {
         // transitions)
         if (connectionPayload.getClientId() == Constants.DEFAULT_CLIENT_ID) {
             knownClients.clear();
-            events.forEach(event -> {
-                if (event instanceof IRoomEvents) {
-                    ((IRoomEvents) event).onRoomAction(
-                            Constants.DEFAULT_CLIENT_ID, // resrt
-                            connectionPayload.getMessage(), // room name
-                            false, // is join
-                            true);
-                }
-            });
+            try {
+                events.forEach(event -> {
+                    if (event instanceof IRoomEvents) {
+                        ((IRoomEvents) event).onRoomAction(
+                                Constants.DEFAULT_CLIENT_ID, // reset
+                                connectionPayload.getMessage(), // room name
+                                false, // is join
+                                true);
+                    }
+                });
+            } catch (Exception e) {
+                LoggerUtil.INSTANCE.severe("Error processing room reset action", e);
+            }
             return;
         }
         switch (connectionPayload.getPayloadType()) {
@@ -756,15 +796,19 @@ public enum Client {
                 if (knownClients.containsKey(connectionPayload.getClientId())) {
                     // inform UI of user leaving (do this first before removal since UI side uses a
                     // lookup method to fetch display name)
-                    events.forEach(event -> {
-                        if (event instanceof IRoomEvents) {
-                            ((IRoomEvents) event).onRoomAction(
-                                    connectionPayload.getClientId(),
-                                    connectionPayload.getMessage(),
-                                    false,
-                                    false);
-                        }
-                    });
+                    try {
+                        events.forEach(event -> {
+                            if (event instanceof IRoomEvents) {
+                                ((IRoomEvents) event).onRoomAction(
+                                        connectionPayload.getClientId(),
+                                        connectionPayload.getMessage(),
+                                        false,
+                                        false);
+                            }
+                        });
+                    } catch (Exception e) {
+                        LoggerUtil.INSTANCE.severe("Error processing room leave action", e);
+                    }
                     knownClients.remove(connectionPayload.getClientId());
                 }
                 if (connectionPayload.getMessage() != null) {
@@ -786,16 +830,20 @@ public enum Client {
                     user.setClientName(connectionPayload.getClientName());
                     knownClients.put(connectionPayload.getClientId(), user);
                     // inform UI of user joining
-                    events.forEach(event -> {
-                        if (event instanceof IRoomEvents) {
-                            ((IRoomEvents) event).onRoomAction(
-                                    connectionPayload.getClientId(), // who
-                                    connectionPayload.getMessage(), // room name
-                                    true, // is join
-                                    connectionPayload.getPayloadType() == PayloadType.SYNC_CLIENT // isQuiet if sync
-                            );
-                        }
-                    });
+                    try {
+                        events.forEach(event -> {
+                            if (event instanceof IRoomEvents) {
+                                ((IRoomEvents) event).onRoomAction(
+                                        connectionPayload.getClientId(), // who
+                                        connectionPayload.getMessage(), // room name
+                                        true, // is join
+                                        connectionPayload.getPayloadType() == PayloadType.SYNC_CLIENT // isQuiet if sync
+                                );
+                            }
+                        });
+                    } catch (Exception e) {
+                        LoggerUtil.INSTANCE.severe("Error processing room join action", e);
+                    }
                 }
                 break;
             default:
@@ -806,20 +854,28 @@ public enum Client {
 
     private void processMessage(Payload payload) {
         LoggerUtil.INSTANCE.info(TextFX.colorize(payload.getMessage(), Color.BLUE));
-        events.forEach(event -> {
-            if (event instanceof IMessageEvents) {
-                ((IMessageEvents) event).onMessageReceive(payload.getClientId(), payload.getMessage());
-            }
-        });
+        try {
+            events.forEach(event -> {
+                if (event instanceof IMessageEvents) {
+                    ((IMessageEvents) event).onMessageReceive(payload.getClientId(), payload.getMessage());
+                }
+            });
+        } catch (Exception e) {
+            LoggerUtil.INSTANCE.severe("Error processing message", e);
+        }
     }
 
     private void processReverse(Payload payload) {
         LoggerUtil.INSTANCE.info(TextFX.colorize(payload.getMessage(), Color.PURPLE));
-        events.forEach(event -> {
-            if (event instanceof IMessageEvents) {
-                ((IMessageEvents) event).onMessageReceive(payload.getClientId(), payload.getMessage());
-            }
-        });
+        try {
+            events.forEach(event -> {
+                if (event instanceof IMessageEvents) {
+                    ((IMessageEvents) event).onMessageReceive(payload.getClientId(), payload.getMessage());
+                }
+            });
+        } catch (Exception e) {
+            LoggerUtil.INSTANCE.severe("Error processing reverse message", e);
+        }
     }
     // End process*() methods
 
