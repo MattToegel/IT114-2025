@@ -125,7 +125,7 @@ public class GameEventsPanel extends JPanel implements IPhaseEvent, IReadyEvent,
             return; // Ignore quiet updates
         }
         String displayName = Client.INSTANCE.getDisplayNameFromId(clientId);
-        addText(String.format("%s is %s", displayName, clientId, isReady ? "ready" : "not ready"));
+        addText(String.format("%s is %s", displayName, isReady ? "ready" : "not ready"));
     }
 
     @Override

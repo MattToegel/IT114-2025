@@ -610,7 +610,7 @@ public enum Client {
             events.forEach(event -> {
                 if (event instanceof IMessageEvents) {
                     ((IMessageEvents) event).onMessageReceive(Constants.GAME_EVENT_CHANNEL,
-                            String.format("%s[%s] finished their turn", cp.getClientName(), cp.getClientId()));
+                            String.format("%s finished their turn", cp.getDisplayName()));
                 }
             });
         }
@@ -676,7 +676,7 @@ public enum Client {
         User cp = knownClients.get(rp.getClientId());
         cp.setReady(rp.isReady());
         if (!isQuiet) {
-            System.out.println(
+            LoggerUtil.INSTANCE.info(
                     String.format("%s is %s", cp.getDisplayName(),
                             rp.isReady() ? "ready" : "not ready"));
         }
