@@ -30,4 +30,5 @@ public enum PayloadType {
        REMOVE_CARD, // syncs a single card removal
        POINTS, // syncs points data
        CELL, // syncs cell data
+       TIME, // syncs current time of various timers
 }

@@ -22,6 +22,8 @@ import Equals6.Common.RoomAction;
 import Equals6.Common.RoomResultPayload;
 import Equals6.Common.TextFX;
 import Equals6.Common.TextFX.Color;
+import Equals6.Common.TimerPayload;
+import Equals6.Common.TimerType;
 
 /**
  * A server-side representation of a single client
@@ -61,19 +63,13 @@ public class ServerThread extends BaseServerThread {
     }
 
     // Start Send*() Methods
-    public boolean sendCellUpdate(int x, int y, int value){
+    public boolean sendCellUpdate(int x, int y, int value) {
         CellPayload cp = new CellPayload();
         cp.setPayloadType(PayloadType.CELL);
         cp.setX(x);
         cp.setY(y);
         cp.setValue(value);
         return sendToClient(cp);
-    }
-    public boolean sendPlayerPoints(long clientId, int points) {
-        PointsPayload payload = new PointsPayload();
-        payload.setClientId(clientId);
-        payload.setPoints(points);
-        return sendToClient(payload);
     }
 
     public boolean sendRemoveCard(Card card) {
@@ -96,6 +92,38 @@ public class ServerThread extends BaseServerThread {
     public boolean sendBoardData(int rows, int cols, long seed) {
         BoardPayload bp = new BoardPayload(rows, cols, seed);
         return sendToClient(bp);
+    }
+
+    /**
+     * Syncs a specific client's points
+     * 
+     * @param clientId
+     * @param points
+     * @return
+     */
+    public boolean sendPlayerPoints(long clientId, int points) {
+        PointsPayload rp = new PointsPayload();
+        rp.setPoints(points);
+        rp.setClientId(clientId);
+        return sendToClient(rp);
+    }
+
+    public boolean sendGameEvent(String str) {
+        return sendMessage(Constants.GAME_EVENT_CHANNEL, str);
+    }
+
+    /**
+     * Syncs the current time of a specific TimerType
+     * 
+     * @param timerType
+     * @param time
+     * @return
+     */
+    public boolean sendCurrentTime(TimerType timerType, int time) {
+        TimerPayload tp = new TimerPayload();
+        tp.setTime(time);
+        tp.setTimerType(timerType);
+        return sendToClient(tp);
     }
 
     public boolean sendResetTurnStatus() {
@@ -131,7 +159,7 @@ public class ServerThread extends BaseServerThread {
         return sendToClient(rp);
     }
 
-    public boolean sendReadyStatus(long clientId, boolean isReady) {
+    public synchronized boolean sendReadyStatus(long clientId, boolean isReady) {
         return sendReadyStatus(clientId, isReady, false);
     }
 
@@ -167,7 +195,7 @@ public class ServerThread extends BaseServerThread {
     }
 
     protected boolean sendResetUserList() {
-        return sendClientInfo(Constants.DEFAULT_CLIENT_ID, null, RoomAction.JOIN);
+        return sendClientInfo(Constants.DEFAULT_CLIENT_ID, null, null, RoomAction.JOIN);
     }
 
     /**
@@ -178,8 +206,8 @@ public class ServerThread extends BaseServerThread {
      * @param action     RoomAction of Join or Leave
      * @return true for successful send
      */
-    protected boolean sendClientInfo(long clientId, String clientName, RoomAction action) {
-        return sendClientInfo(clientId, clientName, action, false);
+    protected boolean sendClientInfo(long clientId, String clientName, String roomName, RoomAction action) {
+        return sendClientInfo(clientId, clientName, roomName, action, false);
     }
 
     /**
@@ -192,7 +220,8 @@ public class ServerThread extends BaseServerThread {
      *                   sync)
      * @return true for successful send
      */
-    protected boolean sendClientInfo(long clientId, String clientName, RoomAction action, boolean isSync) {
+    protected boolean sendClientInfo(long clientId, String clientName, String roomName, RoomAction action,
+            boolean isSync) {
         ConnectionPayload payload = new ConnectionPayload();
         switch (action) {
             case JOIN:
@@ -209,6 +238,7 @@ public class ServerThread extends BaseServerThread {
         }
         payload.setClientId(clientId);
         payload.setClientName(clientName);
+        payload.setMessage(roomName);// pass room name
         return sendToClient(payload);
     }
 
@@ -296,12 +326,10 @@ public class ServerThread extends BaseServerThread {
                     CardCoordPayload cp = (CardCoordPayload) incoming;
                     Card card = cp.getCards().get(0);
                     ((GameRoom) currentRoom).handleCardAction(this, cp.getX(), cp.getY(), card);
-                } 
-                catch(ClassCastException e){
+                } catch (ClassCastException e) {
                     LoggerUtil.INSTANCE.severe("Error casting in CARD", e);
                     sendMessage(Constants.DEFAULT_CLIENT_ID, "Error handling CARD action");
-                }
-                catch (Exception e) {
+                } catch (Exception e) {
                     sendMessage(Constants.DEFAULT_CLIENT_ID, "You must be in a GameRoom to do a turn");
                 }
                 break;
@@ -328,12 +356,6 @@ public class ServerThread extends BaseServerThread {
         this.user.setTookTurn(tookTurn);
     }
 
-    protected int getPoints() {
-        return this.user.getPoints();
-    }
-    protected void setPoints(int p){
-        this.user.setPoints(p);
-    }
     protected void addCards(List<Card> cards) {
         this.user.addCards(cards);
         sendDrawnCards(cards);
@@ -347,8 +369,16 @@ public class ServerThread extends BaseServerThread {
         return this.user.removeCard(card);
     }
 
+    protected int getPoints() {
+        return this.user.getPoints();
+    }
+
     protected void changePoints(int points) {
         this.user.changePoints(points);
+    }
+
+    protected void setPoints(int points) {
+        this.user.setPoints(points);
     }
 
     protected int getHandSize() {
