@@ -189,6 +189,9 @@ public class GameRoom extends BaseGameRoom {
         LoggerUtil.INSTANCE.info("onSessionEnd() start");
         turnOrder.clear();
         currentTurnClientId = Constants.DEFAULT_CLIENT_ID;
+        // reset any pending timers
+        resetTurnTimer();
+        resetRoundTimer();
         resetTurnStatus();
         resetReadyStatus();
         resetTurnStatus();
