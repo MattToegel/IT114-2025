@@ -42,6 +42,7 @@ public class GameRoom extends BaseGameRoom {
         syncReadyStatus(sp);
         syncTurnStatus(sp);
         syncPlayerPoints(sp);
+        syncAwayStatus(sp);
     }
 
     /** {@inheritDoc} */
@@ -220,6 +221,28 @@ public class GameRoom extends BaseGameRoom {
     // end lifecycle methods
 
     // send/sync data to ServerUser(s)
+    private void syncAwayStatus(ServerThread incomingClient) {
+        clientsInRoom.values().forEach(serverUser -> {
+            boolean failedToSync = !incomingClient.sendAwayStatus(serverUser.getClientId(),
+                    serverUser.isAway());
+            if (failedToSync) {
+                LoggerUtil.INSTANCE.warning(
+                        String.format("Removing disconnected %s from list", serverUser.getDisplayName()));
+                disconnect(serverUser);
+            }
+        });
+    }
+
+    private void sendAwayStatus(long clientId, boolean isAway) {
+        clientsInRoom.values().removeIf(spInRoom -> {
+            boolean failedToSend = !spInRoom.sendAwayStatus(clientId, isAway);
+            if (failedToSend) {
+                removeClient(spInRoom);
+            }
+            return failedToSend;
+        });
+    }
+
     private void sendPlayerPoints(ServerThread client) {
         clientsInRoom.values().removeIf(spInRoom -> {
             boolean failedToSend = !spInRoom.sendPlayerPoints(client.getClientId(), client.getPoints());
@@ -387,6 +410,17 @@ public class GameRoom extends BaseGameRoom {
     // end check methods
 
     // receive data from ServerThread (GameRoom specific)
+    protected void handleAway(ServerThread currentUser) {
+        try {
+            checkPlayerInRoom(currentUser);
+            currentUser.setAway(!currentUser.isAway());
+            sendAwayStatus(currentUser.getClientId(), currentUser.isAway());
+
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
     protected void handleCardAction(ServerThread currentUser, int x, int y, Card card) {
         try {
             checkPlayerInRoom(currentUser);

@@ -45,6 +45,13 @@ public class GridPanel extends JPanel implements IBoardEvents {
     @Override
     public void onReceiveCell(int row, int column, int value) {
         LoggerUtil.INSTANCE.info("Updating cell at (" + row + "," + column + ") with value: " + value);
+        /**
+         * Grid options:
+         * 1. Loop through cells, find which has proper x,y
+         * 2. Use Math
+         * 2a. int oneDindex = (row * length_of_row) + column; // Indexes
+         * 2b. (col) $i % NUMBER_ITEMS_IN_ROW and (row) $i / NUMBER_ITEMS_IN_ROW
+         */
         for (int i = 0; i < this.getComponentCount(); i++) {
             CellButton cell = (CellButton) this.getComponent(i);
             if (cell.getRow() == row && cell.getCol() == column) {

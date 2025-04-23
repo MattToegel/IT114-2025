@@ -10,6 +10,7 @@ import java.io.IOException;
 import java.util.List;
 
 import javax.swing.BorderFactory;
+import javax.swing.JButton;
 import javax.swing.JPanel;
 import javax.swing.JSplitPane;
 
@@ -76,6 +77,18 @@ public class GamePanel extends JPanel implements IRoomEvents, IPhaseEvent {
         });
 
         this.add(splitPane, BorderLayout.CENTER);
+        JPanel interactions = new JPanel();
+        JButton awayButton = new JButton("Toggle Away");
+        awayButton.addActionListener(event->{
+            try {
+                Client.INSTANCE.sendAway();
+            } catch (IOException e1) {
+                // TODO Auto-generated catch block
+                e1.printStackTrace();
+            }
+        });
+        interactions.add(awayButton);
+        this.add(interactions, BorderLayout.SOUTH);
         controls.addPanel(CardView.CHAT_GAME_SCREEN.name(), this);
         setVisible(false);
     }

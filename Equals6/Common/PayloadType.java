@@ -31,4 +31,5 @@ public enum PayloadType {
        POINTS, // syncs points data
        CELL, // syncs cell data
        TIME, // syncs current time of various timers
+       AWAY, // syncs away status
 }

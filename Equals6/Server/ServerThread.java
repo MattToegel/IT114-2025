@@ -3,6 +3,7 @@ package Equals6.Server;
 import java.net.Socket;
 import java.util.List;
 import java.util.Objects;
+import java.util.Random;
 import java.util.function.Consumer;
 
 import Equals6.Common.BoardPayload;
@@ -63,6 +64,13 @@ public class ServerThread extends BaseServerThread {
     }
 
     // Start Send*() Methods
+    public boolean sendAwayStatus(long clientId, boolean isAway){
+        ReadyPayload rp = new ReadyPayload();
+        rp.setPayloadType(PayloadType.AWAY);
+        rp.setClientId(clientId);
+        rp.setReady(isAway);
+        return sendToClient(rp);
+    }
     public boolean sendCellUpdate(int x, int y, int value) {
         CellPayload cp = new CellPayload();
         cp.setPayloadType(PayloadType.CELL);
@@ -331,6 +339,14 @@ public class ServerThread extends BaseServerThread {
                     sendMessage(Constants.DEFAULT_CLIENT_ID, "Error handling CARD action");
                 } catch (Exception e) {
                     sendMessage(Constants.DEFAULT_CLIENT_ID, "You must be in a GameRoom to do a turn");
+                }
+                break;
+            case AWAY:
+                try{
+                    ((GameRoom) currentRoom).handleAway(this); 
+                }
+                catch(Exception e){
+                    sendMessage(Constants.DEFAULT_CLIENT_ID, "You must be in a GameRoom to toggle away");
                 }
                 break;
             default:

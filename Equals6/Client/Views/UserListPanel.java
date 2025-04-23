@@ -21,6 +21,7 @@ import javax.swing.border.EmptyBorder;
 import Equals6.Client.Client;
 import Equals6.Client.Interfaces.IPointsEvent;
 import Equals6.Client.Interfaces.IReadyEvent;
+import Equals6.Client.Interfaces.IStatusEvent;
 import Equals6.Client.Interfaces.ITurnEvent;
 import Equals6.Common.Constants;
 import Equals6.Common.LoggerUtil;
@@ -28,7 +29,7 @@ import Equals6.Common.LoggerUtil;
 /**
  * UserListPanel represents a UI component that displays a list of users.
  */
-public class UserListPanel extends JPanel implements IReadyEvent, IPointsEvent, ITurnEvent {
+public class UserListPanel extends JPanel implements IReadyEvent, IPointsEvent, ITurnEvent, IStatusEvent {
     private JPanel userListArea;
     private GridBagConstraints lastConstraints; // Keep track of the last constraints for the glue
     private HashMap<Long, UserListItem> userItemsMap; // Maintain a map of client IDs to UserListItems
@@ -230,5 +231,24 @@ public class UserListPanel extends JPanel implements IReadyEvent, IPointsEvent, 
                 }
             });
         }
+    }
+
+    @Override
+    public void onUpdateAwayStatus(long clientId, boolean isAway) {
+        if (clientId == Constants.DEFAULT_CLIENT_ID) {
+            SwingUtilities.invokeLater(() -> {
+                userItemsMap.values().forEach(u -> u.setAwayStatus(false));// reset all
+            });
+        } else if (userItemsMap.containsKey(clientId)) {
+            SwingUtilities.invokeLater(() -> {
+                userItemsMap.get(clientId).setAwayStatus(isAway);
+            });
+        }
+    }
+
+    @Override
+    public void onUpdateSpectatorStatus(long clientId, boolean isSpectator) {
+        // TODO Auto-generated method stub
+       // throw new UnsupportedOperationException("Unimplemented method 'onUpdateSpectatorStatus'");
     }
 }

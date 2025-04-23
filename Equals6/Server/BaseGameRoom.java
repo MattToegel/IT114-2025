@@ -291,8 +291,8 @@ public abstract class BaseGameRoom extends Room {
      * @param client
      * @throws Exception
      */
-    protected void checkPlayerInRoom(ServerThread client) throws Exception {
-        if (!clientsInRoom.containsKey(client.getClientId())) {
+            protected void checkPlayerInRoom(ServerThread client) throws Exception {
+    if (!clientsInRoom.containsKey(client.getClientId())) {
             LoggerUtil.INSTANCE.severe("Player isn't in room");
             throw new PlayerNotFoundException("Player isn't in room");
         }

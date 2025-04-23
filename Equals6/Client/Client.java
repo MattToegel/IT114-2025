@@ -23,6 +23,7 @@ import Equals6.Client.Interfaces.IPhaseEvent;
 import Equals6.Client.Interfaces.IPointsEvent;
 import Equals6.Client.Interfaces.IReadyEvent;
 import Equals6.Client.Interfaces.IRoomEvents;
+import Equals6.Client.Interfaces.IStatusEvent;
 import Equals6.Client.Interfaces.ITimeEvents;
 import Equals6.Client.Interfaces.ITurnEvent;
 import Equals6.Common.Board;
@@ -337,12 +338,22 @@ public enum Client {
                     return true;
                 }
                 wasCommand = true;
+            } else if (text.equalsIgnoreCase(Command.AWAY.command)) {
+                sendAway();
+                wasCommand = true;
             }
         }
         return wasCommand;
     }
 
     // Start Send*() methods
+    public void sendAway() throws IOException {
+        LoggerUtil.INSTANCE.info("Triggered away");
+        Payload payload = new Payload();
+        payload.setPayloadType(PayloadType.AWAY);
+        sendToServer(payload);
+    }
+
     public void sendCardChoice(int x, int y, Card card) throws IOException {
         CardCoordPayload payload = new CardCoordPayload();
         payload.setCard(card);
@@ -586,6 +597,9 @@ public enum Client {
             case PayloadType.POINTS:
                 processPoints(payload);
                 break;
+            case PayloadType.AWAY:
+                processAway(payload);
+                break;
             default:
                 LoggerUtil.INSTANCE.warning(TextFX.colorize("Unhandled payload type", Color.YELLOW));
                 break;
@@ -594,6 +608,28 @@ public enum Client {
     }
 
     // Start process*() methods
+    private synchronized void processAway(Payload payload){
+        if (!(payload instanceof ReadyPayload)) {
+            error("Invalid payload subclass for processAway");
+            return;
+        }
+        ReadyPayload rp = (ReadyPayload)payload;
+        User cp = knownClients.get(rp.getClientId());
+        cp.setAway(rp.isReady());
+        clientSideGameEvent(String.format("%s is %s", cp.getDisplayName(),
+        cp.isAway()?"away":"not away"));
+        try{
+            events.forEach(event->{
+                if(event instanceof IStatusEvent){
+                    ((IStatusEvent)event).onUpdateAwayStatus(cp.getClientId(), cp.isAway());
+                }
+            });
+        }
+        catch (Exception e) {
+            LoggerUtil.INSTANCE.severe("Error processing away status", e);
+        }
+
+    }
     private synchronized void processCardAdd(Payload payload) {
         if (!(payload instanceof CardsPayload)) {
             error("Invalid payload subclass for processCardAdd");
