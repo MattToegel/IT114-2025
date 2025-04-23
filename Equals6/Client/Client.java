@@ -14,6 +14,8 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import Equals6.Common.PointsPayload;
+import Equals6.Client.Interfaces.IBoardEvents;
+import Equals6.Client.Interfaces.ICardEvents;
 import Equals6.Client.Interfaces.IClientEvents;
 import Equals6.Client.Interfaces.IConnectionEvents;
 import Equals6.Client.Interfaces.IMessageEvents;
@@ -28,6 +30,7 @@ import Equals6.Common.BoardPayload;
 import Equals6.Common.Card;
 import Equals6.Common.CardCoordPayload;
 import Equals6.Common.CardsPayload;
+import Equals6.Common.Cell;
 import Equals6.Common.CellPayload;
 import Equals6.Common.Command;
 import Equals6.Common.ConnectionPayload;
@@ -340,7 +343,7 @@ public enum Client {
     }
 
     // Start Send*() methods
-    private void sendCardChoice(int x, int y, Card card) throws IOException {
+    public void sendCardChoice(int x, int y, Card card) throws IOException {
         CardCoordPayload payload = new CardCoordPayload();
         payload.setCard(card);
         payload.setX(x);
@@ -591,7 +594,7 @@ public enum Client {
     }
 
     // Start process*() methods
-    private void processCardAdd(Payload payload) {
+    private synchronized void processCardAdd(Payload payload) {
         if (!(payload instanceof CardsPayload)) {
             error("Invalid payload subclass for processCardAdd");
             return;
@@ -604,9 +607,19 @@ public enum Client {
         }
         myUser.addCards(cards);
         LoggerUtil.INSTANCE.info("My hand: " + myUser.handToString());
+
+        try {
+            events.forEach(event -> {
+                if (event instanceof ICardEvents) {
+                    ((ICardEvents) event).onReceiveCards(cards);
+                }
+            });
+        } catch (Exception e) {
+            LoggerUtil.INSTANCE.severe("Error processing card add", e);
+        }
     }
 
-    private void processCardRemoval(Payload payload) {
+    private synchronized void processCardRemoval(Payload payload) {
         if (!(payload instanceof CardsPayload)) {
             error("Invalid payload subclass for processCardRemove");
             return;
@@ -619,9 +632,19 @@ public enum Client {
         }
         myUser.removeCard(cards.get(0));
         LoggerUtil.INSTANCE.info("My hand: " + myUser.handToString());
+
+        try {
+            events.forEach(event -> {
+                if (event instanceof ICardEvents) {
+                    ((ICardEvents) event).onDiscardCard(cards.get(0));
+                }
+            });
+        } catch (Exception e) {
+            LoggerUtil.INSTANCE.severe("Error processing card removal", e);
+        }
     }
 
-    private void processMyHand(Payload payload) {
+    private synchronized void processMyHand(Payload payload) {
         if (!(payload instanceof CardsPayload)) {
             error("Invalid payload subclass for processMyHand");
             return;
@@ -634,9 +657,19 @@ public enum Client {
         }
         myUser.setCards(cards);
         LoggerUtil.INSTANCE.info("My hand: " + myUser.handToString());
+
+        try {
+            events.forEach(event -> {
+                if (event instanceof ICardEvents) {
+                    ((ICardEvents) event).onReceiveCards(myUser.getCards());
+                }
+            });
+        } catch (Exception e) {
+            LoggerUtil.INSTANCE.severe("Error processing my hand", e);
+        }
     }
 
-    private void processCell(Payload payload) {
+    private synchronized void processCell(Payload payload) {
         if (!(payload instanceof CellPayload)) {
             error("Invalid payload subclass for processCell");
             return;
@@ -644,9 +677,19 @@ public enum Client {
         CellPayload cp = (CellPayload) payload;
         board.applyAction(cp.getX(), cp.getY(), cp.getValue());
         LoggerUtil.INSTANCE.info("Updated Board: \n" + board.toString());
+
+        try {
+            events.forEach(event -> {
+                if (event instanceof IBoardEvents) {
+                    ((IBoardEvents) event).onReceiveCell(cp.getX(), cp.getY(), cp.getValue());
+                }
+            });
+        } catch (Exception e) {
+            LoggerUtil.INSTANCE.severe("Error processing cell", e);
+        }
     }
 
-    private void processBoardData(Payload payload) {
+    private synchronized void processBoardData(Payload payload) {
         if (!(payload instanceof BoardPayload)) {
             error("Invalid payload subclass for processBoardData");
             return;
@@ -656,9 +699,37 @@ public enum Client {
         board.setSeed(bp.getSeed());
         board.initialize(bp.getRows(), bp.getCols());
         LoggerUtil.INSTANCE.info("Initialized Board: \n" + board.toString());
+        try {
+            events.forEach(event -> {
+                if (event instanceof IBoardEvents) {
+                    ((IBoardEvents) event).onReceiveDimensions(bp.getRows(), bp.getCols());
+                }
+            });
+        } catch (Exception e) {
+            LoggerUtil.INSTANCE.severe("Error processing board data", e);
+        }
+        // lazy / somewhat inefficient way to populate client-side grid visual
+        Cell[][] cells = board.getCells();
+        for (int i = 0; i < cells.length; i++) {
+            for (int j = 0; j < cells[i].length; j++) {
+                Cell cell = cells[i][j];
+                // needs to be final to be used in lambda (forEach)
+                final int row = i;
+                final int col = j;
+                try {
+                    events.forEach(event -> {
+                        if (event instanceof IBoardEvents) {
+                            ((IBoardEvents) event).onReceiveCell(row, col, cell.getValue());
+                        }
+                    });
+                } catch (Exception e) {
+                    LoggerUtil.INSTANCE.severe("Error processing board data", e);
+                }
+            }
+        }
     }
 
-    private void processPoints(Payload payload) {
+    private synchronized void processPoints(Payload payload) {
         if (!(payload instanceof PointsPayload)) {
             error("Invalid payload subclass for processCardAdd");
             return;
@@ -680,7 +751,7 @@ public enum Client {
         }
     }
 
-    private void processCurrentTimer(Payload payload) {
+    private synchronized void processCurrentTimer(Payload payload) {
         if (!(payload instanceof TimerPayload)) {
             error("Invalid payload subclass for processCurrentTimer");
             return;
@@ -697,7 +768,7 @@ public enum Client {
         }
     }
 
-    private void processResetTurn() {
+    private synchronized void processResetTurn() {
         knownClients.values().forEach(cp -> cp.setTookTurn(false));
         System.out.println("Turn status reset for everyone");
         try {
@@ -711,7 +782,7 @@ public enum Client {
         }
     }
 
-    private void processTurn(Payload payload) {
+    private synchronized void processTurn(Payload payload) {
         // Note: For now assuming ReadyPayload (this may be changed later)
         if (!(payload instanceof ReadyPayload)) {
             error("Invalid payload subclass for processTurn");
@@ -747,7 +818,7 @@ public enum Client {
         }
     }
 
-    private void processPhase(Payload payload) {
+    private synchronized void processPhase(Payload payload) {
         currentPhase = Enum.valueOf(Phase.class, payload.getMessage());
         System.out.println(TextFX.colorize("Current phase is " + currentPhase.name(), Color.YELLOW));
         try {
@@ -761,15 +832,19 @@ public enum Client {
         }
     }
 
-    private void processResetReady() {
-        // using this to clear all local state
-        knownClients.values().forEach(cp -> {
-            cp.setReady(false);
-            cp.setPoints(0);
-            cp.setTookTurn(false);
-            cp.setCards(null);
+    private synchronized void processResetReady() {
+        try {
+            // using this to clear all local state
+            knownClients.values().forEach(cp -> {
+                cp.setReady(false);
+                cp.setPoints(0);
+                cp.setTookTurn(false);
+                cp.setCards(null);
 
-        });
+            });
+        } catch (Exception e) {
+            LoggerUtil.INSTANCE.severe("Error processing reset ready during knownClients reset", e);
+        }
         try {
             events.forEach(event -> {
                 if (event instanceof IReadyEvent) {
@@ -778,16 +853,19 @@ public enum Client {
                     ((ITurnEvent) event).onTookTurn(Constants.DEFAULT_CLIENT_ID, false);
                 } else if (event instanceof IPointsEvent) {
                     ((IPointsEvent) event).onPointsUpdate(Constants.DEFAULT_CLIENT_ID, -1);
+                } else if (event instanceof IBoardEvents) {
+                    ((IBoardEvents) event).onReceiveDimensions(-1, -1);
+                } else if (event instanceof ICardEvents) {
+                    ((ICardEvents) event).onReceiveCards(null);
                 }
-                // TODO update about cards/board
             });
         } catch (Exception e) {
-            LoggerUtil.INSTANCE.severe("Error processing reset ready", e);
+            LoggerUtil.INSTANCE.severe("Error processing reset ready during UI update", e);
         }
         System.out.println("Ready status reset for everyone");
     }
 
-    private void processReadyStatus(Payload payload, boolean isQuiet) {
+    private synchronized void processReadyStatus(Payload payload, boolean isQuiet) {
         if (!(payload instanceof ReadyPayload)) {
             error("Invalid payload subclass for processRoomsList");
             return;
@@ -817,7 +895,7 @@ public enum Client {
         }
     }
 
-    private void processRoomsList(Payload payload) {
+    private synchronized void processRoomsList(Payload payload) {
         if (!(payload instanceof RoomResultPayload)) {
             error("Invalid payload subclass for processRoomsList");
             return;
@@ -844,7 +922,7 @@ public enum Client {
                 String.join("\n", rooms));
     }
 
-    private void processClientData(Payload payload) {
+    private synchronized void processClientData(Payload payload) {
         if (myUser.getClientId() != Constants.DEFAULT_CLIENT_ID) {
             LoggerUtil.INSTANCE.warning(TextFX.colorize("Client ID already set, this shouldn't happen", Color.YELLOW));
 
@@ -864,7 +942,7 @@ public enum Client {
         }
     }
 
-    private void processDisconnect(Payload payload) {
+    private synchronized void processDisconnect(Payload payload) {
         try {
             events.forEach(event -> {
                 if (event instanceof IConnectionEvents) {
@@ -889,7 +967,7 @@ public enum Client {
 
     }
 
-    private void processRoomAction(Payload payload) {
+    private synchronized void processRoomAction(Payload payload) {
         if (!(payload instanceof ConnectionPayload)) {
             error("Invalid payload subclass for processRoomAction");
             return;
@@ -977,7 +1055,7 @@ public enum Client {
         }
     }
 
-    private void processMessage(Payload payload) {
+    private synchronized void processMessage(Payload payload) {
         LoggerUtil.INSTANCE.info(TextFX.colorize(payload.getMessage(), Color.BLUE));
         try {
             events.forEach(event -> {
@@ -990,7 +1068,7 @@ public enum Client {
         }
     }
 
-    private void processReverse(Payload payload) {
+    private synchronized void processReverse(Payload payload) {
         LoggerUtil.INSTANCE.info(TextFX.colorize(payload.getMessage(), Color.PURPLE));
         try {
             events.forEach(event -> {
@@ -1002,7 +1080,16 @@ public enum Client {
             LoggerUtil.INSTANCE.severe("Error processing reverse message", e);
         }
     }
+
     // End process*() methods
+    // user data interactions
+    public int getHandSize() {
+        return myUser.getCards() == null ? 0 : myUser.getCards().size();
+    }
+
+    public Card getCard(int i) {
+        return myUser.getCards().get(i);
+    }
 
     /**
      * Listens for keyboard input from the user

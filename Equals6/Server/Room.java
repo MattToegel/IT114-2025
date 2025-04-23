@@ -122,7 +122,13 @@ public class Room implements AutoCloseable {
         if (!isRunning) { // block action if Room isn't running
             return;
         }
-
+        // Part of Spectator requirement
+        if (sender != null && sender.isSpectator()) {
+            sender.sendMessage(Constants.DEFAULT_CLIENT_ID, "Spectators can't send messages");
+            LoggerUtil.INSTANCE.warning(
+                    String.format("Spectator %s attempted to send a message", sender.getDisplayName()));
+            return;
+        }
         final long senderId = sender == null ? Constants.DEFAULT_CLIENT_ID : sender.getClientId();
         // Note: formattedMessage must be final (or effectively final) since outside
         // scope can't be changed inside a callback function (see removeIf() below)

@@ -18,6 +18,10 @@ public class Cell {
         }
     }
 
+    public int getValue() {
+        return value;
+    }
+
     @Override
     public String toString() {
         return String.format("Cell(%d,%d) = %d", x, y, value);

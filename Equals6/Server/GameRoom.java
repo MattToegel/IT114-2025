@@ -63,6 +63,7 @@ public class GameRoom extends BaseGameRoom {
     }
 
     // timer handlers
+    @SuppressWarnings("unused")
     private void startRoundTimer() {
         roundTimer = new TimedEvent(30, () -> onRoundEnd());
         roundTimer.setTickCallback((time) -> System.out.println("Round Time: " + time));
@@ -95,6 +96,8 @@ public class GameRoom extends BaseGameRoom {
     protected void onSessionStart() {
         LoggerUtil.INSTANCE.info("onSessionStart() start");
         changePhase(Phase.IN_PROGRESS);
+        // mark spectators
+        clientsInRoom.values().stream().filter(s -> !s.isReady()).forEach(s -> s.setSpectator(true));
         currentTurnClientId = Constants.DEFAULT_CLIENT_ID;
         setTurnOrder();
         round = 0;
@@ -200,9 +203,17 @@ public class GameRoom extends BaseGameRoom {
         LoggerUtil.INSTANCE.info("onSessionEnd() start");
         turnOrder.clear();
         currentTurnClientId = Constants.DEFAULT_CLIENT_ID;
-        resetReadyStatus();
+        // resetReadyStatus();
+        sendResetReadyTrigger();
         resetTurnStatus();
-        clientsInRoom.values().stream().forEach(s->s.setPoints(0));
+        clientsInRoom.values().stream().forEach(s -> {
+            s.setReady(false);
+            s.setSpectator(false);
+            // no need to reset away, that's purely a user action
+            // no need to reset turn status as that's handled in `resetTurnStatus()`
+
+            s.setPoints(0);
+        });
         changePhase(Phase.READY);
         LoggerUtil.INSTANCE.info("onSessionEnd() end");
     }
@@ -232,15 +243,17 @@ public class GameRoom extends BaseGameRoom {
             }
         });
     }
-    private void sendCellUpdate(int x, int y, int value){
+
+    private void sendCellUpdate(int x, int y, int value) {
         clientsInRoom.values().removeIf(spInRoom -> {
-            boolean failedToSend = !spInRoom.sendCellUpdate(x,y,value);
+            boolean failedToSend = !spInRoom.sendCellUpdate(x, y, value);
             if (failedToSend) {
                 removeClient(spInRoom);
             }
             return failedToSend;
         });
     }
+
     private void sendDrawnHandToPlayers(Deck deck, int numCards) {
         turnOrder.removeIf(player -> {
             List<Card> hand = deck.drawCards(numCards);
@@ -342,6 +355,7 @@ public class GameRoom extends BaseGameRoom {
         return turnOrder.indexOf(getCurrentPlayer()) == (turnOrder.size() - 1);
     }
 
+    @SuppressWarnings("unused")
     private void checkAllTookTurn() {
         int numReady = clientsInRoom.values().stream()
                 .filter(sp -> sp.isReady())
@@ -364,6 +378,12 @@ public class GameRoom extends BaseGameRoom {
         }
     }
 
+    private void checkIsAway(ServerThread client) throws NotReadyException {
+        if (client.isAway()) {
+            client.sendMessage(Constants.DEFAULT_CLIENT_ID, "You are currently marked as away");
+            throw new NotReadyException("Player is away");
+        }
+    }
     // end check methods
 
     // receive data from ServerThread (GameRoom specific)
@@ -371,7 +391,11 @@ public class GameRoom extends BaseGameRoom {
         try {
             checkPlayerInRoom(currentUser);
             checkCurrentPhase(currentUser, Phase.IN_PROGRESS);
+            checkIsReady(currentUser);
             checkCurrentPlayer(currentUser.getClientId());
+
+            checkIsAway(currentUser);
+            // No need for spectator check as that's handled by `checkIsReady()`
             if (currentUser.didTakeTurn()) {
                 currentUser.sendMessage(Constants.DEFAULT_CLIENT_ID, "You have already taken your turn this round");
                 return;
@@ -385,6 +409,7 @@ public class GameRoom extends BaseGameRoom {
             }
             // apply card effect
             board.applyAction(x, y, cardFromHand.getValue());
+            LoggerUtil.INSTANCE.info("Current Board\n" + board);
             sendCellUpdate(x, y, cardFromHand.getValue());
             relay(null, String.format("%s added %s to (%d,%d)", currentUser.getDisplayName(),
                     cardFromHand.getValue(), x, y));
@@ -395,11 +420,12 @@ public class GameRoom extends BaseGameRoom {
             } else {
                 currentUser.changePoints(points);
                 relay(null, String.format("%s gained %d point(s)", currentUser.getDisplayName(), points));
-                //currentUser.sendPlayerPoints(currentUser.getClientId(), currentUser.getPoints());
+                // currentUser.sendPlayerPoints(currentUser.getClientId(),
+                // currentUser.getPoints());
                 sendPlayerPoints(currentUser);
             }
             currentUser.sendRemoveCard(cardFromHand);
-            
+
             currentUser.setTookTurn(true);
             sendTurnStatus(currentUser, currentUser.didTakeTurn());
 

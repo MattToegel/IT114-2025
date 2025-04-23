@@ -11,6 +11,36 @@ public class User {
     private boolean tookTurn = false;
     private int points = 0;
     private List<Card> cards = new ArrayList<>();
+    private boolean isAway;
+    private boolean isSpectator;
+
+    /**
+     * @return the isAway
+     */
+    public boolean isAway() {
+        return isAway;
+    }
+
+    /**
+     * @param isAway the isAway to set
+     */
+    public void setAway(boolean isAway) {
+        this.isAway = isAway;
+    }
+
+    /**
+     * @return the isSpectator
+     */
+    public boolean isSpectator() {
+        return isSpectator;
+    }
+
+    /**
+     * @param isSpectator the isSpectator to set
+     */
+    public void setSpectator(boolean isSpectator) {
+        this.isSpectator = isSpectator;
+    }
 
     /**
      * @return the points
@@ -58,6 +88,12 @@ public class User {
      * @param cards the cards to set
      */
     public void setCards(List<Card> cards) {
+        if (cards == null) {
+            if (this.cards != null) {
+                this.cards.clear();
+            }
+            return;
+        }
         this.cards = cards.stream().map(c -> c.clone()).collect(Collectors.toList());
     }
 
@@ -140,7 +176,9 @@ public class User {
         this.isReady = false;
         this.tookTurn = false;
         this.points = 0;
-        if(this.cards != null){
+        this.isSpectator = false;
+        this.isAway = false;
+        if (this.cards != null) {
             cards.clear();
         }
     }

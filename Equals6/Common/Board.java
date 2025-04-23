@@ -98,6 +98,10 @@ public class Board {
         cells[x][y].addValue(value);
     }
 
+    public Cell[][] getCells() {
+        return cells;
+    }
+
     /**
      * Returns a string representation of the board as a formatted grid
      */

@@ -385,6 +385,22 @@ public class ServerThread extends BaseServerThread {
         return this.user.getCards().size();
     }
 
+    protected void setAway(boolean isAway) {
+        this.user.setAway(isAway);
+    }
+
+    protected boolean isAway() {
+        return this.user.isAway();
+    }
+
+    protected boolean isSpectator() {
+        return this.user.isSpectator();
+    }
+
+    protected void setSpectator(boolean isSpectator) {
+        this.user.setSpectator(isSpectator);
+    }
+
     @Override
     protected void onInitialized() {
         // once receiving the desired client name the object is ready
