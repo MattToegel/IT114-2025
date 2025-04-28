@@ -19,9 +19,9 @@ public class DrawSample extends JPanel {
     }
 
     public DrawSample() {
-        Thread drawingThread = new Thread(new Runnable() {
-            @Override
-            public void run() {
+            Thread drawingThread = new Thread(new Runnable() {
+                @Override
+                public void run() {
                 circleX = 0;
                 while (true) {
                     circleX += 5;

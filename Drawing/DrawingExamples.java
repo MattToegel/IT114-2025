@@ -74,6 +74,8 @@ public class DrawingExamples extends JPanel {
     @Override
     protected void paintComponent(Graphics g) {
         super.paintComponent(g);
+        g.setColor(new Color(0,0,0,0));
+        g.fillRect(0, 0, getWidth(), getHeight());
         int cx = (int) (getWidth() * 0.5f);
         int cy = (int) (getHeight() * 0.5f);
 
