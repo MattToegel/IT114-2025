@@ -203,6 +203,7 @@ public class ChatPanel extends JPanel {
      * @param clientName The name of the client.
      */
     public void addUserListItem(long clientId, String clientName) {
+       
         SwingUtilities.invokeLater(() -> userListPanel.addUserListItem(clientId, clientName));
     }
 

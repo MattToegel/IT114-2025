@@ -3,7 +3,6 @@ package Equals6.Server;
 import java.net.Socket;
 import java.util.List;
 import java.util.Objects;
-import java.util.Random;
 import java.util.function.Consumer;
 
 import Equals6.Common.BoardPayload;

@@ -13,15 +13,13 @@ if $debug; then
     debugArg="-agentlib:jdwp=transport=dt_socket,server=y,address=5005"
     echo "Debug mode is ON"
 fi
-
+project="${1%/}" # remove trailing slash
 if [ "$input" = "server" ]; then
-    java $debugArg $1.Server.Server $port 
+    java $debugArg "$project.Server.Server" "$port"
 elif [ "$input" = "client" ]; then
-    java $debugArg $1.Client.Client
-    # In Milestone3 changes Client to ClientUI
+    java $debugArg "$project.Client.Client"
 elif [ "$input" = "ui" ]; then
-	java $debugArg $1.Client.ClientUI
-	# Milestone 3's new entry point
+    java $debugArg "$project.Client.ClientUI"
 else
-    echo "Must specify client or server"
+    echo "Must specify client or server or ui"
 fi

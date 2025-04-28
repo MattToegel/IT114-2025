@@ -1,6 +1,6 @@
 #!/bin/bash
 wd=$(pwd)
-cd $1
+cd "${1%/}" # remove trailing slash
 # delete all .class files
 find . -name "*.class" -type f -delete
 find . -name "*.java" > sources.txt

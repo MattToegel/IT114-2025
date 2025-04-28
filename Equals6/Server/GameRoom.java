@@ -98,7 +98,9 @@ public class GameRoom extends BaseGameRoom {
         LoggerUtil.INSTANCE.info("onSessionStart() start");
         changePhase(Phase.IN_PROGRESS);
         // mark spectators
-        clientsInRoom.values().stream().filter(s -> !s.isReady()).forEach(s -> s.setSpectator(true));
+        clientsInRoom.values().stream()
+        .filter(s -> !s.isReady()).forEach(s 
+        -> s.setSpectator(true));
         currentTurnClientId = Constants.DEFAULT_CLIENT_ID;
         setTurnOrder();
         round = 0;
