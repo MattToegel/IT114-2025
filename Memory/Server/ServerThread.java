@@ -5,7 +5,6 @@ import java.util.List;
 import java.util.Objects;
 import java.util.function.Consumer;
 
-import Memory.Common.PointsPayload;
 import Memory.Common.BooleanCoordPayload;
 import Memory.Common.ConnectionPayload;
 import Memory.Common.Constants;
@@ -15,11 +14,14 @@ import Memory.Common.LoggerUtil;
 import Memory.Common.Payload;
 import Memory.Common.PayloadType;
 import Memory.Common.Phase;
+import Memory.Common.PointsPayload;
 import Memory.Common.ReadyPayload;
 import Memory.Common.RoomAction;
 import Memory.Common.RoomResultPayload;
 import Memory.Common.TextFX;
 import Memory.Common.TextFX.Color;
+import Memory.Common.TimerPayload;
+import Memory.Common.TimerType;
 
 /**
  * A server-side representation of a single client
@@ -59,12 +61,13 @@ public class ServerThread extends BaseServerThread {
     }
 
     // Start Send*() Methods
-    public boolean sendFlipDown(){
+    public synchronized boolean sendFlipDown() {
         Payload payload = new Payload();
         payload.setPayloadType(PayloadType.FLIP_DOWN);
         return sendToClient(payload);
     }
-    public boolean sendPickedCells(List<Coord> coords, boolean collected) {
+
+    public synchronized boolean sendPickedCells(List<Coord> coords, boolean collected) {
         BooleanCoordPayload cp = new BooleanCoordPayload();
         cp.setCoords(coords);
         cp.setPayloadType(PayloadType.PICK);
@@ -72,7 +75,14 @@ public class ServerThread extends BaseServerThread {
         return sendToClient(cp);
     }
 
-    public boolean sendPlayerPoints(long clientId, int points) {
+    /**
+     * Syncs a specific client's points
+     * 
+     * @param clientId
+     * @param points
+     * @return
+     */
+    public synchronized boolean sendPlayerPoints(long clientId, int points) {
         PointsPayload pp = new PointsPayload();
         pp.setPoints(points);
         pp.setPayloadType(PayloadType.POINTS);
@@ -80,7 +90,7 @@ public class ServerThread extends BaseServerThread {
         return sendToClient(pp);
     }
 
-    public boolean sendSelection(Coord coord, boolean selected) {
+    public synchronized boolean sendSelection(Coord coord, boolean selected) {
         BooleanCoordPayload cp = new BooleanCoordPayload();
         cp.setValue(selected);
         cp.setPayloadType(PayloadType.SELECTION);
@@ -88,14 +98,32 @@ public class ServerThread extends BaseServerThread {
         return sendToClient(cp);
     }
 
-    public boolean sendBoardDimensions(Coord coord) {
+    public synchronized boolean sendBoardDimensions(Coord coord) {
         CoordsPayload cp = new CoordsPayload();
         cp.setPayloadType(PayloadType.BOARD_DIMENSIONS);
         cp.setCoord(coord);
         return sendToClient(cp);
     }
 
-    public boolean sendResetTurnStatus() {
+    public synchronized boolean sendGameEvent(String str) {
+        return sendMessage(Constants.GAME_EVENT_CHANNEL, str);
+    }
+
+    /**
+     * Syncs the current time of a specific TimerType
+     * 
+     * @param timerType
+     * @param time
+     * @return
+     */
+    public synchronized boolean sendCurrentTime(TimerType timerType, int time) {
+        TimerPayload tp = new TimerPayload();
+        tp.setTime(time);
+        tp.setTimerType(timerType);
+        return sendToClient(tp);
+    }
+
+    public synchronized boolean sendResetTurnStatus() {
         ReadyPayload rp = new ReadyPayload();
         rp.setPayloadType(PayloadType.RESET_TURN);
         return sendToClient(rp);
@@ -128,7 +156,7 @@ public class ServerThread extends BaseServerThread {
         return sendToClient(rp);
     }
 
-    public boolean sendReadyStatus(long clientId, boolean isReady) {
+    public synchronized boolean sendReadyStatus(long clientId, boolean isReady) {
         return sendReadyStatus(clientId, isReady, false);
     }
 
@@ -164,7 +192,7 @@ public class ServerThread extends BaseServerThread {
     }
 
     protected boolean sendResetUserList() {
-        return sendClientInfo(Constants.DEFAULT_CLIENT_ID, null, RoomAction.JOIN);
+        return sendClientInfo(Constants.DEFAULT_CLIENT_ID, null, null, RoomAction.JOIN);
     }
 
     /**
@@ -175,8 +203,8 @@ public class ServerThread extends BaseServerThread {
      * @param action     RoomAction of Join or Leave
      * @return true for successful send
      */
-    protected boolean sendClientInfo(long clientId, String clientName, RoomAction action) {
-        return sendClientInfo(clientId, clientName, action, false);
+    protected boolean sendClientInfo(long clientId, String clientName, String roomName, RoomAction action) {
+        return sendClientInfo(clientId, clientName, roomName, action, false);
     }
 
     /**
@@ -189,7 +217,8 @@ public class ServerThread extends BaseServerThread {
      *                   sync)
      * @return true for successful send
      */
-    protected boolean sendClientInfo(long clientId, String clientName, RoomAction action, boolean isSync) {
+    protected boolean sendClientInfo(long clientId, String clientName, String roomName, RoomAction action,
+            boolean isSync) {
         ConnectionPayload payload = new ConnectionPayload();
         switch (action) {
             case JOIN:
@@ -206,6 +235,7 @@ public class ServerThread extends BaseServerThread {
         }
         payload.setClientId(clientId);
         payload.setClientName(clientName);
+        payload.setMessage(roomName);// pass room name
         return sendToClient(payload);
     }
 
@@ -333,6 +363,10 @@ public class ServerThread extends BaseServerThread {
 
     protected List<Coord> getSelections() {
         return this.user.getSelections();
+    }
+
+    protected void setPoints(int points) {
+        this.user.setPoints(points);
     }
 
     protected void changePoints(int points) {

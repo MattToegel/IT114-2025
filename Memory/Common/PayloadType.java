@@ -29,4 +29,5 @@ public enum PayloadType {
        SELECTION, // syncs a selection action (x, y coordinates)
        POINTS, // syncs points data
        FLIP_DOWN, // syncs a flip down action (x, y coordinates)
+       TIME, // syncs time data
 }

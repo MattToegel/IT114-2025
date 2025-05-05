@@ -38,12 +38,16 @@ public class GameRoom extends BaseGameRoom {
     @Override
     protected void onClientAdded(ServerThread sp) {
         // sync GameRoom state to new client
-        syncCurrentPhase(sp);
-        syncReadyStatus(sp);
-        if (currentPhase == Phase.IN_PROGRESS) {
-            syncTurnStatus(sp);
-            syncBoardDimensions(sp);
-        }
+        new TimedEvent(1, () -> {
+            syncCurrentPhase(sp);
+            syncReadyStatus(sp);
+            syncPlayerPoints(sp);
+            if (currentPhase == Phase.IN_PROGRESS) {
+                syncTurnStatus(sp);
+                syncBoardDimensions(sp);
+            }
+        });
+
     }
 
     /** {@inheritDoc} */
@@ -155,6 +159,7 @@ public class GameRoom extends BaseGameRoom {
 
                 if (points > 0) {
                     current.changePoints(points);
+                    sendPlayerPoints(current.getClientId(), points);// forgot to add in MS2 part of video
                     // sendPoints
                     relay(null, String.format("%s received a point", current.getDisplayName()));
                     sendPickedCells(current.getSelections(), true);

@@ -1,11 +1,11 @@
 package Memory.Client;
 
-import java.awt.Point;
 import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.net.Socket;
 import java.net.UnknownHostException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Scanner;
 import java.util.concurrent.CompletableFuture;
@@ -13,6 +13,15 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import Memory.Client.Interfaces.IClientEvents;
+import Memory.Client.Interfaces.IConnectionEvents;
+import Memory.Client.Interfaces.IMessageEvents;
+import Memory.Client.Interfaces.IPhaseEvent;
+import Memory.Client.Interfaces.IPointsEvent;
+import Memory.Client.Interfaces.IReadyEvent;
+import Memory.Client.Interfaces.IRoomEvents;
+import Memory.Client.Interfaces.ITimeEvents;
+import Memory.Client.Interfaces.ITurnEvent;
 import Memory.Common.Board;
 import Memory.Common.BooleanCoordPayload;
 import Memory.Common.Command;
@@ -29,8 +38,9 @@ import Memory.Common.ReadyPayload;
 import Memory.Common.RoomAction;
 import Memory.Common.RoomResultPayload;
 import Memory.Common.TextFX;
-import Memory.Common.User;
 import Memory.Common.TextFX.Color;
+import Memory.Common.TimerPayload;
+import Memory.Common.User;
 
 /**
  * Demoing bi-directional communication between client and server in a
@@ -39,15 +49,6 @@ import Memory.Common.TextFX.Color;
 public enum Client {
     INSTANCE;
 
-    {
-        // statically initialize the client-side LoggerUtil
-        LoggerUtil.LoggerConfig config = new LoggerUtil.LoggerConfig();
-        config.setFileSizeLimit(2048 * 1024); // 2MB
-        config.setFileCount(1);
-        config.setLogLocation("client.log");
-        // Set the logger configuration
-        LoggerUtil.INSTANCE.setConfig(config);
-    }
     private Socket server = null;
     private ObjectOutputStream out = null;
     private ObjectInputStream in = null;
@@ -59,6 +60,12 @@ public enum Client {
     private User myUser = new User();
     private Phase currentPhase = Phase.READY;
     private Board board = new Board();
+    // callback that updates the UI
+    private static List<IClientEvents> events = new ArrayList<IClientEvents>();
+
+    public void addCallback(IClientEvents e) {
+        events.add(e);
+    }
 
     private void error(String message) {
         LoggerUtil.INSTANCE.severe(TextFX.colorize(String.format("%s", message), Color.RED));
@@ -87,6 +94,7 @@ public enum Client {
      * @param port
      * @return true if connection was successful
      */
+    @Deprecated
     private boolean connect(String address, int port) {
         try {
             server = new Socket(address, port);
@@ -103,6 +111,76 @@ public enum Client {
             e.printStackTrace();
         }
         return isConnected();
+    }
+
+    /**
+     * Takes an ip address and a port to attempt a socket connection to a server.
+     * 
+     * @param address
+     * @param port
+     * @param username
+     * @param callback (for triggering UI events)
+     * @return true if connection was successful
+     */
+    public boolean connect(String address, int port, String username, IClientEvents callback) {
+        myUser.setClientName(username);
+        addCallback(callback);
+        try {
+            server = new Socket(address, port);
+            // channel to send to server
+            out = new ObjectOutputStream(server.getOutputStream());
+            // channel to listen to server
+            in = new ObjectInputStream(server.getInputStream());
+            LoggerUtil.INSTANCE.info("Client connected");
+            // Use CompletableFuture to run listenToServer() in a separate thread
+            CompletableFuture.runAsync(this::listenToServer);
+            sendClientName(myUser.getClientName());// sync follow-up data (handshake)
+        } catch (UnknownHostException e) {
+            e.printStackTrace();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        return isConnected();
+    }
+
+    public long getMyClientId() {
+        return myUser.getClientId();
+    }
+
+    public void clientSideGameEvent(String str) {
+        events.forEach(event -> {
+            if (event instanceof IMessageEvents) {
+                // Note: using -2 to target GameEventPanel
+                ((IMessageEvents) event).onMessageReceive(Constants.GAME_EVENT_CHANNEL, str);
+            }
+        });
+    }
+
+    /**
+     * Returns the ClientName of a specific Client by ID.
+     * 
+     * @param id
+     * @return the name, or Room if id is -1, or [Unknown] if failed to find
+     */
+    @Deprecated
+    public String getClientNameFromId(long id) {
+        if (id == Constants.DEFAULT_CLIENT_ID) {
+            return "Room";
+        }
+        if (knownClients.containsKey(id)) {
+            return knownClients.get(id).getClientName();
+        }
+        return "[Unknown]";
+    }
+
+    public String getDisplayNameFromId(long id) {
+        if (id == Constants.DEFAULT_CLIENT_ID) {
+            return "Room";
+        }
+        if (knownClients.containsKey(id)) {
+            return knownClients.get(id).getDisplayName();
+        }
+        return "[Unknown]";
     }
 
     /**
@@ -170,7 +248,8 @@ public enum Client {
                 String message = TextFX.colorize("Known clients:\n", Color.CYAN);
                 LoggerUtil.INSTANCE.info(TextFX.colorize("Known clients:", Color.CYAN));
                 message += String.join("\n", knownClients.values().stream()
-                        .map(c -> String.format("%s %s %s %s %s", c.getDisplayName(),
+                        .map(c -> String.format("%s %s %s %s %s pts",
+                                c.getDisplayName(),
                                 c.getClientId() == myUser.getClientId() ? " (you)" : "",
                                 c.isReady() ? "[x]" : "[ ]",
                                 c.didTakeTurn() ? "[T]" : "[ ]",
@@ -179,6 +258,9 @@ public enum Client {
                 LoggerUtil.INSTANCE.info(message);
                 wasCommand = true;
             } else if (Command.QUIT.command.equalsIgnoreCase(text)) {
+                if (isConnected()) {
+                    sendDisconnect();
+                }
                 close();
                 wasCommand = true;
             } else if (Command.DISCONNECT.command.equalsIgnoreCase(text)) {
@@ -264,9 +346,9 @@ public enum Client {
         sendToServer(cp);
     }
 
-    private void sendDoTurn(String text) throws IOException {
+    public void sendDoTurn(String text) throws IOException {
         // NOTE for now using ReadyPayload as it has the necessary properties
-        // An actual turn may include other data for your Memory.
+        // An actual turn may include other data for your project
         ReadyPayload rp = new ReadyPayload();
         rp.setPayloadType(PayloadType.TURN);
         rp.setReady(true); // <- techically not needed as we'll use the payload type as a trigger
@@ -280,7 +362,7 @@ public enum Client {
      * 
      * @throws IOException
      */
-    private void sendReady() throws IOException {
+    public void sendReady() throws IOException {
         ReadyPayload rp = new ReadyPayload();
         rp.setReady(true); // <- techically not needed as we'll use the payload type as a trigger
         sendToServer(rp);
@@ -293,7 +375,7 @@ public enum Client {
      * @param roomAction (join, leave, create)
      * @throws IOException
      */
-    private void sendRoomAction(String roomName, RoomAction roomAction) throws IOException {
+    public void sendRoomAction(String roomName, RoomAction roomAction) throws IOException {
         Payload payload = new Payload();
         payload.setMessage(roomName);
         switch (roomAction) {
@@ -335,7 +417,7 @@ public enum Client {
      * 
      * @throws IOException
      */
-    private void sendDisconnect() throws IOException {
+    public void sendDisconnect() throws IOException {
         Payload payload = new Payload();
         payload.setPayloadType(PayloadType.DISCONNECT);
         sendToServer(payload);
@@ -347,7 +429,11 @@ public enum Client {
      * @param message
      * @throws IOException
      */
-    private void sendMessage(String message) throws IOException {
+    public void sendMessage(String message) throws IOException {
+        // added in Milestone 3 to persist usage of slash commands
+        if (processClientCommand(message)) {
+            return; // if the message was a command, don't send it to the server
+        }
         Payload payload = new Payload();
         payload.setMessage(message);
         payload.setPayloadType(PayloadType.MESSAGE);
@@ -361,6 +447,10 @@ public enum Client {
      * @throws IOException
      */
     private void sendClientName(String name) throws IOException {
+        if (myUser.getClientName() == null || myUser.getClientName().length() == 0) {
+            System.out.println(TextFX.colorize("Name must be set first via /name command", Color.RED));
+            return;
+        }
         ConnectionPayload payload = new ConnectionPayload();
         payload.setClientName(name);
         payload.setPayloadType(PayloadType.CLIENT_CONNECT);
@@ -418,6 +508,7 @@ public enum Client {
     }
 
     private void processPayload(Payload payload) {
+        LoggerUtil.INSTANCE.info("Received from server: " + payload.toString());
         switch (payload.getPayloadType()) {
             case CLIENT_CONNECT:// unused
                 break;
@@ -468,14 +559,17 @@ public enum Client {
                 // note no data necessary as this is just a trigger
                 processResetTurn();
                 break;
+            case PayloadType.TIME:
+                processCurrentTimer(payload);
+                break;
+            case PayloadType.POINTS:
+                processPoints(payload);
+                break;
             case PayloadType.BOARD_DIMENSIONS:
                 processDimension(payload);
                 break;
             case PayloadType.SELECTION:
                 processSelection(payload);
-                break;
-            case PayloadType.POINTS:
-                processPoints(payload);
                 break;
             case PayloadType.PICK:
                 processPickedCells(payload);
@@ -523,14 +617,21 @@ public enum Client {
         if (!(payload instanceof PointsPayload)) {
             error("Invalid payload subclass for processPoints");
             return;
-
         }
-        try {
-            PointsPayload pp = (PointsPayload) payload;
-            User user = knownClients.get(pp.getClientId());
-            user.setPoints(pp.getPoints());
-        } catch (Exception e) {
-            LoggerUtil.INSTANCE.severe("Error processing points", e);
+        PointsPayload pp = (PointsPayload) payload;
+        long targetId = pp.getClientId();
+        int points = pp.getPoints();
+        if (knownClients.containsKey(targetId)) {
+            knownClients.get(targetId).setPoints(points);
+            try {
+                events.stream().forEach(event -> {
+                    if (event instanceof IPointsEvent) {
+                        ((IPointsEvent) event).onPointsUpdate(targetId, points);
+                    }
+                });
+            } catch (Exception e) {
+                LoggerUtil.INSTANCE.severe("Error processing points", e);
+            }
         }
     }
 
@@ -571,9 +672,35 @@ public enum Client {
 
     }
 
+    private void processCurrentTimer(Payload payload) {
+        if (!(payload instanceof TimerPayload)) {
+            error("Invalid payload subclass for processCurrentTimer");
+            return;
+        }
+        TimerPayload timerPayload = (TimerPayload) payload;
+        try {
+            events.forEach(event -> {
+                if (event instanceof ITimeEvents) {
+                    ((ITimeEvents) event).onTimerUpdate(timerPayload.getTimerType(), timerPayload.getTime());
+                }
+            });
+        } catch (Exception e) {
+            LoggerUtil.INSTANCE.severe("Error processing current timer", e);
+        }
+    }
+
     private void processResetTurn() {
         knownClients.values().forEach(cp -> cp.setTookTurn(false));
         System.out.println("Turn status reset for everyone");
+        try {
+            events.forEach(event -> {
+                if (event instanceof ITurnEvent) {
+                    ((ITurnEvent) event).onTookTurn(Constants.DEFAULT_CLIENT_ID, false);
+                }
+            });
+        } catch (Exception e) {
+            LoggerUtil.INSTANCE.severe("Error processing reset turn", e);
+        }
     }
 
     private void processTurn(Payload payload) {
@@ -594,17 +721,58 @@ public enum Client {
             String message = String.format("%s %s their turn", cp.getDisplayName(),
                     cp.didTakeTurn() ? "took" : "reset");
             LoggerUtil.INSTANCE.info(message);
+            events.forEach(event -> {
+                if (event instanceof IMessageEvents) {
+                    ((IMessageEvents) event).onMessageReceive(Constants.GAME_EVENT_CHANNEL,
+                            String.format("%s finished their turn", cp.getDisplayName()));
+                }
+            });
         }
-
+        try {
+            events.forEach(event -> {
+                if (event instanceof ITurnEvent) {
+                    ((ITurnEvent) event).onTookTurn(cp.getClientId(), cp.didTakeTurn());
+                }
+            });
+        } catch (Exception e) {
+            LoggerUtil.INSTANCE.severe("Error processing turn", e);
+        }
     }
 
     private void processPhase(Payload payload) {
         currentPhase = Enum.valueOf(Phase.class, payload.getMessage());
         System.out.println(TextFX.colorize("Current phase is " + currentPhase.name(), Color.YELLOW));
+        try {
+            events.forEach(event -> {
+                if (event instanceof IPhaseEvent) {
+                    ((IPhaseEvent) event).onReceivePhase(currentPhase);
+                }
+            });
+        } catch (Exception e) {
+            LoggerUtil.INSTANCE.severe("Error processing phase", e);
+        }
     }
 
     private void processResetReady() {
-        knownClients.values().forEach(cp -> cp.setReady(false));
+        // using this to clear all local state
+        knownClients.values().forEach(cp -> {
+            cp.setReady(false);
+            cp.setPoints(0);
+            cp.setTookTurn(false);
+        });
+        try {
+            events.forEach(event -> {
+                if (event instanceof IReadyEvent) {
+                    ((IReadyEvent) event).onReceiveReady(Constants.DEFAULT_CLIENT_ID, false, true);
+                } else if (event instanceof ITurnEvent) {
+                    ((ITurnEvent) event).onTookTurn(Constants.DEFAULT_CLIENT_ID, false);
+                } else if (event instanceof IPointsEvent) {
+                    ((IPointsEvent) event).onPointsUpdate(Constants.DEFAULT_CLIENT_ID, -1);
+                }
+            });
+        } catch (Exception e) {
+            LoggerUtil.INSTANCE.severe("Error processing reset ready", e);
+        }
         System.out.println("Ready status reset for everyone");
     }
 
@@ -622,9 +790,19 @@ public enum Client {
         User cp = knownClients.get(rp.getClientId());
         cp.setReady(rp.isReady());
         if (!isQuiet) {
-            System.out.println(
+            LoggerUtil.INSTANCE.info(
                     String.format("%s is %s", cp.getDisplayName(),
                             rp.isReady() ? "ready" : "not ready"));
+        }
+        try {
+            events.forEach(event -> {
+                if (event instanceof IReadyEvent) {
+                    ((IReadyEvent) event).onReceiveReady(cp.getClientId(), cp.isReady(), isQuiet);
+                }
+            });
+
+        } catch (Exception e) {
+            LoggerUtil.INSTANCE.severe("Error processing ready status", e);
         }
     }
 
@@ -635,6 +813,15 @@ public enum Client {
         }
         RoomResultPayload rrp = (RoomResultPayload) payload;
         List<String> rooms = rrp.getRooms();
+        try {
+            events.forEach(event -> {
+                if (event instanceof IRoomEvents) {
+                    ((IRoomEvents) event).onReceiveRoomList(rooms, rrp.getMessage());
+                }
+            });
+        } catch (Exception e) {
+            LoggerUtil.INSTANCE.severe("Error processing room list", e);
+        }
         if (rooms == null || rooms.size() == 0) {
             LoggerUtil.INSTANCE.warning(
                     TextFX.colorize("No rooms found matching your query",
@@ -655,9 +842,27 @@ public enum Client {
         myUser.setClientName(((ConnectionPayload) payload).getClientName());// confirmation from Server
         knownClients.put(myUser.getClientId(), myUser);
         LoggerUtil.INSTANCE.info(TextFX.colorize("Connected", Color.GREEN));
+        try {
+            events.stream().filter(e -> e != null).forEach(event -> {
+                if (event instanceof IConnectionEvents) {
+                    ((IConnectionEvents) event).onReceiveClientId(myUser.getClientId());
+                }
+            });
+        } catch (Exception e) {
+            LoggerUtil.INSTANCE.severe("Error processing client data", e);
+        }
     }
 
     private void processDisconnect(Payload payload) {
+        try {
+            events.forEach(event -> {
+                if (event instanceof IConnectionEvents) {
+                    ((IConnectionEvents) event).onClientDisconnect(payload.getClientId());
+                }
+            });
+        } catch (Exception e) {
+            LoggerUtil.INSTANCE.severe("Error processing disconnect", e);
+        }
         if (payload.getClientId() == myUser.getClientId()) {
             knownClients.clear();
             myUser.reset();
@@ -683,6 +888,19 @@ public enum Client {
         // transitions)
         if (connectionPayload.getClientId() == Constants.DEFAULT_CLIENT_ID) {
             knownClients.clear();
+            try {
+                events.forEach(event -> {
+                    if (event instanceof IRoomEvents) {
+                        ((IRoomEvents) event).onRoomAction(
+                                Constants.DEFAULT_CLIENT_ID, // reset
+                                connectionPayload.getMessage(), // room name
+                                false, // is join
+                                true);
+                    }
+                });
+            } catch (Exception e) {
+                LoggerUtil.INSTANCE.severe("Error processing room reset action", e);
+            }
             return;
         }
         switch (connectionPayload.getPayloadType()) {
@@ -690,6 +908,21 @@ public enum Client {
             case ROOM_LEAVE:
                 // remove from map
                 if (knownClients.containsKey(connectionPayload.getClientId())) {
+                    // inform UI of user leaving (do this first before removal since UI side uses a
+                    // lookup method to fetch display name)
+                    try {
+                        events.forEach(event -> {
+                            if (event instanceof IRoomEvents) {
+                                ((IRoomEvents) event).onRoomAction(
+                                        connectionPayload.getClientId(),
+                                        connectionPayload.getMessage(),
+                                        false,
+                                        false);
+                            }
+                        });
+                    } catch (Exception e) {
+                        LoggerUtil.INSTANCE.severe("Error processing room leave action", e);
+                    }
                     knownClients.remove(connectionPayload.getClientId());
                 }
                 if (connectionPayload.getMessage() != null) {
@@ -701,6 +934,7 @@ public enum Client {
                 if (connectionPayload.getMessage() != null) {
                     LoggerUtil.INSTANCE.info(TextFX.colorize(connectionPayload.getMessage(), Color.GREEN));
                 }
+
                 // cascade to manage knownClients
             case SYNC_CLIENT:
                 // add to map
@@ -709,6 +943,21 @@ public enum Client {
                     user.setClientId(connectionPayload.getClientId());
                     user.setClientName(connectionPayload.getClientName());
                     knownClients.put(connectionPayload.getClientId(), user);
+                    // inform UI of user joining
+                    try {
+                        events.forEach(event -> {
+                            if (event instanceof IRoomEvents) {
+                                ((IRoomEvents) event).onRoomAction(
+                                        connectionPayload.getClientId(), // who
+                                        connectionPayload.getMessage(), // room name
+                                        true, // is join
+                                        connectionPayload.getPayloadType() == PayloadType.SYNC_CLIENT // isQuiet if sync
+                                );
+                            }
+                        });
+                    } catch (Exception e) {
+                        LoggerUtil.INSTANCE.severe("Error processing room join action", e);
+                    }
                 }
                 break;
             default:
@@ -719,10 +968,28 @@ public enum Client {
 
     private void processMessage(Payload payload) {
         LoggerUtil.INSTANCE.info(TextFX.colorize(payload.getMessage(), Color.BLUE));
+        try {
+            events.forEach(event -> {
+                if (event instanceof IMessageEvents) {
+                    ((IMessageEvents) event).onMessageReceive(payload.getClientId(), payload.getMessage());
+                }
+            });
+        } catch (Exception e) {
+            LoggerUtil.INSTANCE.severe("Error processing message", e);
+        }
     }
 
     private void processReverse(Payload payload) {
         LoggerUtil.INSTANCE.info(TextFX.colorize(payload.getMessage(), Color.PURPLE));
+        try {
+            events.forEach(event -> {
+                if (event instanceof IMessageEvents) {
+                    ((IMessageEvents) event).onMessageReceive(payload.getClientId(), payload.getMessage());
+                }
+            });
+        } catch (Exception e) {
+            LoggerUtil.INSTANCE.severe("Error processing reverse message", e);
+        }
     }
     // End process*() methods
 
