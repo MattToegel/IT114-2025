@@ -1,5 +1,6 @@
 package Memory.Client;
 
+import java.awt.Point;
 import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
@@ -12,13 +13,18 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import Memory.Common.Board;
+import Memory.Common.BooleanCoordPayload;
 import Memory.Common.Command;
 import Memory.Common.ConnectionPayload;
 import Memory.Common.Constants;
+import Memory.Common.Coord;
+import Memory.Common.CoordsPayload;
 import Memory.Common.LoggerUtil;
 import Memory.Common.Payload;
 import Memory.Common.PayloadType;
 import Memory.Common.Phase;
+import Memory.Common.PointsPayload;
 import Memory.Common.ReadyPayload;
 import Memory.Common.RoomAction;
 import Memory.Common.RoomResultPayload;
@@ -52,6 +58,7 @@ public enum Client {
     private final ConcurrentHashMap<Long, User> knownClients = new ConcurrentHashMap<Long, User>();
     private User myUser = new User();
     private Phase currentPhase = Phase.READY;
+    private Board board = new Board();
 
     private void error(String message) {
         LoggerUtil.INSTANCE.severe(TextFX.colorize(String.format("%s", message), Color.RED));
@@ -163,11 +170,11 @@ public enum Client {
                 String message = TextFX.colorize("Known clients:\n", Color.CYAN);
                 LoggerUtil.INSTANCE.info(TextFX.colorize("Known clients:", Color.CYAN));
                 message += String.join("\n", knownClients.values().stream()
-                        .map(c -> String.format("%s %s %s", c.getDisplayName(),
+                        .map(c -> String.format("%s %s %s %s %s", c.getDisplayName(),
                                 c.getClientId() == myUser.getClientId() ? " (you)" : "",
                                 c.isReady() ? "[x]" : "[ ]",
-                                c.didTakeTurn() ? "[T]"
-                                        : "[ ]"))
+                                c.didTakeTurn() ? "[T]" : "[ ]",
+                                c.getPoints()))
                         .toList());
                 LoggerUtil.INSTANCE.info(message);
                 wasCommand = true;
@@ -217,12 +224,46 @@ public enum Client {
 
                 sendDoTurn(text);
                 wasCommand = true;
+            } else if (text.startsWith(Command.PICK.command)) {
+                text = text.replace(Command.PICK.command, "").trim();
+                wasCommand = true;
+                int x = -1;
+                int y = -1;
+                try {
+                    String[] coords = text.split(",");
+                    x = Integer.parseInt(coords[0].trim());
+                    y = Integer.parseInt(coords[1].trim());
+                    if (!board.isPointWithinBounds(x, y)) {
+                        LoggerUtil.INSTANCE.warning(TextFX.colorize("Coordinates out of bounds", Color.RED));
+                        return true;
+                    }
+                    if (board.isCellCollected(x, y)) {
+                        LoggerUtil.INSTANCE.warning(TextFX.colorize("Cell already collected", Color.RED));
+                        return true;
+                    } else {
+                        sendPickLocation(x, y);
+                    }
+
+                } catch (NumberFormatException nfe) {
+                    LoggerUtil.INSTANCE.warning(TextFX.colorize("Invalid coordinates", Color.RED));
+                    return true;
+                }
+
+            } else {
+                LoggerUtil.INSTANCE.warning(TextFX.colorize("Invalid command", Color.RED));
             }
         }
         return wasCommand;
     }
 
     // Start Send*() methods
+    private void sendPickLocation(int x, int y) throws IOException {
+        CoordsPayload cp = new CoordsPayload();
+        cp.setCoord(new Coord(x, y));
+        cp.setPayloadType(PayloadType.PICK);
+        sendToServer(cp);
+    }
+
     private void sendDoTurn(String text) throws IOException {
         // NOTE for now using ReadyPayload as it has the necessary properties
         // An actual turn may include other data for your Memory.
@@ -427,6 +468,21 @@ public enum Client {
                 // note no data necessary as this is just a trigger
                 processResetTurn();
                 break;
+            case PayloadType.BOARD_DIMENSIONS:
+                processDimension(payload);
+                break;
+            case PayloadType.SELECTION:
+                processSelection(payload);
+                break;
+            case PayloadType.POINTS:
+                processPoints(payload);
+                break;
+            case PayloadType.PICK:
+                processPickedCells(payload);
+                break;
+            case PayloadType.FLIP_DOWN:
+                processFlipDown();
+                break;
             default:
                 LoggerUtil.INSTANCE.warning(TextFX.colorize("Unhandled payload type", Color.YELLOW));
                 break;
@@ -435,6 +491,86 @@ public enum Client {
     }
 
     // Start process*() methods
+    private void processFlipDown() {
+        board.flipDown();
+    }
+
+    private void processPickedCells(Payload payload) {
+        if (!(payload instanceof BooleanCoordPayload)) {
+            error("Invalid payload subclass for processPickedCells");
+            return;
+        }
+        BooleanCoordPayload cp = (BooleanCoordPayload) payload;
+        try {
+            List<Coord> coords = cp.getCoords();
+            for (Coord coord : coords) {
+                board.setFlipped(coord.getX(), coord.getY(), true);
+
+            }
+            LoggerUtil.INSTANCE.info(String.format("Current Board: \n%s", board));
+            for (Coord coord : coords) {
+
+                if (cp.getValue()) {
+                    board.setCollected(coord.getX(), coord.getY(), true);
+                }
+            }
+        } catch (IndexOutOfBoundsException e) {
+            LoggerUtil.INSTANCE.severe("Error processing picked cells", e);
+        }
+    }
+
+    private void processPoints(Payload payload) {
+        if (!(payload instanceof PointsPayload)) {
+            error("Invalid payload subclass for processPoints");
+            return;
+
+        }
+        try {
+            PointsPayload pp = (PointsPayload) payload;
+            User user = knownClients.get(pp.getClientId());
+            user.setPoints(pp.getPoints());
+        } catch (Exception e) {
+            LoggerUtil.INSTANCE.severe("Error processing points", e);
+        }
+    }
+
+    private void processSelection(Payload payload) {
+        if (!(payload instanceof BooleanCoordPayload)) {
+            error("Invalid payload subclass for processSelection");
+            return;
+        }
+        BooleanCoordPayload bcp = (BooleanCoordPayload) payload;
+        try {
+            Coord coord = bcp.getCoords().get(0);
+            if (bcp.getValue()) {
+                LoggerUtil.INSTANCE.info(String.format("You selected %s", coord.toString()));
+            } else {
+                LoggerUtil.INSTANCE.info(String.format("You unselected %s", coord.toString()));
+            }
+            board.setSelected(coord.getX(), coord.getY(), bcp.getValue());
+
+            LoggerUtil.INSTANCE.info(String.format("Current Board: \n%s", board));
+        } catch (IndexOutOfBoundsException e) {
+            LoggerUtil.INSTANCE.severe("Error processing pick location", e);
+        }
+    }
+
+    private void processDimension(Payload payload) {
+        if (!(payload instanceof CoordsPayload)) {
+            error("Invalid payload subclass for processDimension");
+            return;
+        }
+        CoordsPayload cp = (CoordsPayload) payload;
+        try {
+            Coord coord = cp.getCoords().get(0);
+            board.initialize(coord.getX(), coord.getY());
+            LoggerUtil.INSTANCE.info(String.format("Current Board: \n%s", board));
+        } catch (IndexOutOfBoundsException e) {
+            LoggerUtil.INSTANCE.severe("Error processing board dimensions", e);
+        }
+
+    }
+
     private void processResetTurn() {
         knownClients.values().forEach(cp -> cp.setTookTurn(false));
         System.out.println("Turn status reset for everyone");

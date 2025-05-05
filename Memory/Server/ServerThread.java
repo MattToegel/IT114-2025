@@ -5,8 +5,12 @@ import java.util.List;
 import java.util.Objects;
 import java.util.function.Consumer;
 
+import Memory.Common.PointsPayload;
+import Memory.Common.BooleanCoordPayload;
 import Memory.Common.ConnectionPayload;
 import Memory.Common.Constants;
+import Memory.Common.Coord;
+import Memory.Common.CoordsPayload;
 import Memory.Common.LoggerUtil;
 import Memory.Common.Payload;
 import Memory.Common.PayloadType;
@@ -55,6 +59,42 @@ public class ServerThread extends BaseServerThread {
     }
 
     // Start Send*() Methods
+    public boolean sendFlipDown(){
+        Payload payload = new Payload();
+        payload.setPayloadType(PayloadType.FLIP_DOWN);
+        return sendToClient(payload);
+    }
+    public boolean sendPickedCells(List<Coord> coords, boolean collected) {
+        BooleanCoordPayload cp = new BooleanCoordPayload();
+        cp.setCoords(coords);
+        cp.setPayloadType(PayloadType.PICK);
+        cp.setValue(collected);
+        return sendToClient(cp);
+    }
+
+    public boolean sendPlayerPoints(long clientId, int points) {
+        PointsPayload pp = new PointsPayload();
+        pp.setPoints(points);
+        pp.setPayloadType(PayloadType.POINTS);
+        pp.setClientId(clientId);
+        return sendToClient(pp);
+    }
+
+    public boolean sendSelection(Coord coord, boolean selected) {
+        BooleanCoordPayload cp = new BooleanCoordPayload();
+        cp.setValue(selected);
+        cp.setPayloadType(PayloadType.SELECTION);
+        cp.setCoord(coord);
+        return sendToClient(cp);
+    }
+
+    public boolean sendBoardDimensions(Coord coord) {
+        CoordsPayload cp = new CoordsPayload();
+        cp.setPayloadType(PayloadType.BOARD_DIMENSIONS);
+        cp.setCoord(coord);
+        return sendToClient(cp);
+    }
+
     public boolean sendResetTurnStatus() {
         ReadyPayload rp = new ReadyPayload();
         rp.setPayloadType(PayloadType.RESET_TURN);
@@ -246,6 +286,16 @@ public class ServerThread extends BaseServerThread {
                     sendMessage(Constants.DEFAULT_CLIENT_ID, "You must be in a GameRoom to do a turn");
                 }
                 break;
+            case PICK:
+                try {
+                    CoordsPayload cp = (CoordsPayload) incoming;
+                    Coord pick = cp.getCoords().get(0);
+                    // cast to GameRoom as the subclass will handle all Game logic
+                    ((GameRoom) currentRoom).handlePickAction(this, pick.getX(), pick.getY());
+                } catch (Exception e) {
+                    sendMessage(Constants.DEFAULT_CLIENT_ID, "You must be in a GameRoom to do a pick action");
+                }
+                break;
             default:
                 LoggerUtil.INSTANCE.warning(TextFX.colorize("Unknown payload type received", Color.RED));
                 break;
@@ -267,6 +317,30 @@ public class ServerThread extends BaseServerThread {
 
     protected void setTookTurn(boolean tookTurn) {
         this.user.setTookTurn(tookTurn);
+    }
+
+    protected boolean toggleSelection(Coord coord) {
+        return this.user.toggleSelection(coord);
+    }
+
+    protected int getSelectionCount() {
+        return this.user.getSelectionCount();
+    }
+
+    protected void setSelections(List<Coord> selections) {
+        this.user.setSelections(selections);
+    }
+
+    protected List<Coord> getSelections() {
+        return this.user.getSelections();
+    }
+
+    protected void changePoints(int points) {
+        this.user.changePoints(points);
+    }
+
+    protected int getPoints() {
+        return this.user.getPoints();
     }
 
     @Override
