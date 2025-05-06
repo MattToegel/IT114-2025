@@ -61,6 +61,14 @@ public class ServerThread extends BaseServerThread {
     }
 
     // Start Send*() Methods
+    public synchronized boolean sendAwayStatus(long clientId, boolean isAway) {
+        ReadyPayload rp = new ReadyPayload();
+        rp.setPayloadType(PayloadType.AWAY);
+        rp.setClientId(clientId);
+        rp.setReady(isAway);
+        return sendToClient(rp);
+    }
+
     public synchronized boolean sendFlipDown() {
         Payload payload = new Payload();
         payload.setPayloadType(PayloadType.FLIP_DOWN);
@@ -326,6 +334,15 @@ public class ServerThread extends BaseServerThread {
                     sendMessage(Constants.DEFAULT_CLIENT_ID, "You must be in a GameRoom to do a pick action");
                 }
                 break;
+            case AWAY:
+                try {
+                    // cast to GameRoom as the subclass will handle all Game logic
+                    ((GameRoom) currentRoom).handleAwayAction(this);
+                } catch (Exception e) {
+                    sendMessage(Constants.DEFAULT_CLIENT_ID, "You must be in a GameRoom to do an away action");
+                }
+
+                break;
             default:
                 LoggerUtil.INSTANCE.warning(TextFX.colorize("Unknown payload type received", Color.RED));
                 break;
@@ -375,6 +392,22 @@ public class ServerThread extends BaseServerThread {
 
     protected int getPoints() {
         return this.user.getPoints();
+    }
+
+    public void setAway(boolean away) {
+        this.user.setAway(away);
+    }
+
+    public boolean isAway() {
+        return this.user.isAway();
+    }
+
+    public void setSpectator(boolean isSpectator) {
+        this.user.setSpectator(isSpectator);
+    }
+
+    public boolean isSpectator() {
+        return this.user.isSpectator();
     }
 
     @Override

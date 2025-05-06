@@ -13,6 +13,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import Memory.Client.Interfaces.IBoardEvents;
 import Memory.Client.Interfaces.IClientEvents;
 import Memory.Client.Interfaces.IConnectionEvents;
 import Memory.Client.Interfaces.IMessageEvents;
@@ -20,6 +21,7 @@ import Memory.Client.Interfaces.IPhaseEvent;
 import Memory.Client.Interfaces.IPointsEvent;
 import Memory.Client.Interfaces.IReadyEvent;
 import Memory.Client.Interfaces.IRoomEvents;
+import Memory.Client.Interfaces.IStatusEvents;
 import Memory.Client.Interfaces.ITimeEvents;
 import Memory.Client.Interfaces.ITurnEvent;
 import Memory.Common.Board;
@@ -331,6 +333,8 @@ public enum Client {
                     return true;
                 }
 
+            } else if (text.equalsIgnoreCase(Command.AWAY.command)) {
+                sendAway();
             } else {
                 LoggerUtil.INSTANCE.warning(TextFX.colorize("Invalid command", Color.RED));
             }
@@ -339,7 +343,13 @@ public enum Client {
     }
 
     // Start Send*() methods
-    private void sendPickLocation(int x, int y) throws IOException {
+    public void sendAway() throws IOException {
+        Payload payload = new Payload();
+        payload.setPayloadType(PayloadType.AWAY);
+        sendToServer(payload);
+    }
+
+    public void sendPickLocation(int x, int y) throws IOException {
         CoordsPayload cp = new CoordsPayload();
         cp.setCoord(new Coord(x, y));
         cp.setPayloadType(PayloadType.PICK);
@@ -577,6 +587,9 @@ public enum Client {
             case PayloadType.FLIP_DOWN:
                 processFlipDown();
                 break;
+            case PayloadType.AWAY:
+                processAway(payload);
+                break;
             default:
                 LoggerUtil.INSTANCE.warning(TextFX.colorize("Unhandled payload type", Color.YELLOW));
                 break;
@@ -585,8 +598,37 @@ public enum Client {
     }
 
     // Start process*() methods
+    private void processAway(Payload payload) {
+        if (!(payload instanceof ReadyPayload)) {
+            error("Invalid payload subclass for processAway");
+            return;
+        }
+        ReadyPayload rp = (ReadyPayload) payload;
+        User u = knownClients.get(rp.getClientId());
+        u.setAway(rp.isReady());
+        try {
+            events.stream().forEach(event -> {
+                if (event instanceof IStatusEvents) {
+                    ((IStatusEvents) event).onReceiveAway(rp.getClientId(), u.isAway());
+                }
+            });
+        } catch (Exception e) {
+            LoggerUtil.INSTANCE.severe("Error processing away status", e);
+        }
+    }
+
     private void processFlipDown() {
         board.flipDown();
+
+        try {
+            events.stream().forEach(event -> {
+                if (event instanceof IBoardEvents) {
+                    ((IBoardEvents) event).onReceiveCell(-1, -1, null, false, false);
+                }
+            });
+        } catch (Exception e) {
+            LoggerUtil.INSTANCE.severe("Error processing flip down", e);
+        }
     }
 
     private void processPickedCells(Payload payload) {
@@ -599,7 +641,14 @@ public enum Client {
             List<Coord> coords = cp.getCoords();
             for (Coord coord : coords) {
                 board.setFlipped(coord.getX(), coord.getY(), true);
-
+                /*
+                 * events.stream().forEach(event -> {
+                 * if (event instanceof IBoardEvents) {
+                 * ((IBoardEvents) event).onReceiveCell(coord.getX(), coord.getY(),
+                 * coord.getValue(), true, false);
+                 * }
+                 * });
+                 */
             }
             LoggerUtil.INSTANCE.info(String.format("Current Board: \n%s", board));
             for (Coord coord : coords) {
@@ -607,6 +656,13 @@ public enum Client {
                 if (cp.getValue()) {
                     board.setCollected(coord.getX(), coord.getY(), true);
                 }
+                events.stream().forEach(event -> {
+                    if (event instanceof IBoardEvents) {
+                        ((IBoardEvents) event).onReceiveCell(coord.getX(), coord.getY(),
+                                coord.getValue(), true, cp.getValue());
+                    }
+                });
+
             }
         } catch (IndexOutOfBoundsException e) {
             LoggerUtil.INSTANCE.severe("Error processing picked cells", e);
@@ -651,9 +707,16 @@ public enum Client {
             board.setSelected(coord.getX(), coord.getY(), bcp.getValue());
 
             LoggerUtil.INSTANCE.info(String.format("Current Board: \n%s", board));
+
+            events.stream().forEach(event -> {
+                if (event instanceof IBoardEvents) {
+                    ((IBoardEvents) event).onReceiveSelection(coord.getX(), coord.getY(), bcp.getValue());
+                }
+            });
         } catch (IndexOutOfBoundsException e) {
             LoggerUtil.INSTANCE.severe("Error processing pick location", e);
         }
+
     }
 
     private void processDimension(Payload payload) {
@@ -666,6 +729,11 @@ public enum Client {
             Coord coord = cp.getCoords().get(0);
             board.initialize(coord.getX(), coord.getY());
             LoggerUtil.INSTANCE.info(String.format("Current Board: \n%s", board));
+            events.stream().forEach(event -> {
+                if (event instanceof IBoardEvents) {
+                    ((IBoardEvents) event).onReceiveDimensions(coord.getX(), coord.getY());
+                }
+            });
         } catch (IndexOutOfBoundsException e) {
             LoggerUtil.INSTANCE.severe("Error processing board dimensions", e);
         }

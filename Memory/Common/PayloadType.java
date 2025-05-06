@@ -30,4 +30,5 @@ public enum PayloadType {
        POINTS, // syncs points data
        FLIP_DOWN, // syncs a flip down action (x, y coordinates)
        TIME, // syncs time data
+       AWAY, // syncs away status
 }

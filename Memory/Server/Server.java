@@ -146,7 +146,7 @@ public enum Server {
             throw new RoomNotFoundException(String.format("Room %s wasn't found", name));
         }
         Room currentRoom = client.getCurrentRoom();
-        if (currentRoom != null) {
+        if (currentRoom != null && !currentRoom.getName().equalsIgnoreCase(nameCheck)) {
             info("Removing client from previous Room " + currentRoom.getName());
             currentRoom.removeClient(client);
         }

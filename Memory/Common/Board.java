@@ -1,6 +1,7 @@
 package Memory.Common;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Random;
 
@@ -48,6 +49,7 @@ public class Board {
         if (totalCells % 2 != 0) {
             symbols.add(String.valueOf(symbol++));
         }
+        Collections.shuffle(symbols); // shuffle the symbols
         // initialize a dynamic grid
         int index = 0;
         cells = new Cell[rows][cols];
@@ -80,6 +82,13 @@ public class Board {
                 cells[i][j].setFlipped(false);
             }
         }
+    }
+
+    public String getCellValue(int x, int y) {
+        if (!isPointWithinBounds(x, y)) {
+            throw new IndexOutOfBoundsException("Invalid cell coordinates: (" + x + ", " + y + ")");
+        }
+        return cells[x][y].getValue();
     }
 
     /**
@@ -152,5 +161,12 @@ public class Board {
             sb.append("\n");
         }
         return sb.toString();
+    }
+
+    public static void main(String[] args) {
+        Board board = new Board();
+        board.initialize(6, 6);
+        board.setIsServer(true);
+        System.out.println(board.toString());
     }
 }

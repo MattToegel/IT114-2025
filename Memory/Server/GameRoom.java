@@ -101,6 +101,8 @@ public class GameRoom extends BaseGameRoom {
     protected void onSessionStart() {
         LoggerUtil.INSTANCE.info("onSessionStart() start");
         changePhase(Phase.IN_PROGRESS);
+        // spectators
+        clientsInRoom.values().stream().filter(c -> !c.isReady()).forEach(c -> c.setSpectator(true));
         currentTurnClientId = Constants.DEFAULT_CLIENT_ID;
         setTurnOrder();
         board.setIsServer(true);
@@ -156,10 +158,13 @@ public class GameRoom extends BaseGameRoom {
             ServerThread current = getCurrentPlayer();
             if (current.getSelectionCount() == 2) {
                 int points = board.getPoints(current.getSelections());
-
+                // populate selection
+                current.getSelections().forEach(coord -> {
+                    coord.setValue(board.getCellValue(coord.getX(), coord.getY()));
+                });
                 if (points > 0) {
                     current.changePoints(points);
-                    sendPlayerPoints(current.getClientId(), points);// forgot to add in MS2 part of video
+                    sendPlayerPoints(current.getClientId(), current.getPoints());// forgot to add in MS2 part of video
                     // sendPoints
                     relay(null, String.format("%s received a point", current.getDisplayName()));
                     sendPickedCells(current.getSelections(), true);
@@ -225,12 +230,33 @@ public class GameRoom extends BaseGameRoom {
         currentTurnClientId = Constants.DEFAULT_CLIENT_ID;
         resetReadyStatus();
         resetTurnStatus();
+        clientsInRoom.values().stream().filter(c -> !c.isReady()).forEach(c -> c.setSpectator(false));
         changePhase(Phase.READY);
         LoggerUtil.INSTANCE.info("onSessionEnd() end");
     }
     // end lifecycle methods
 
     // send/sync data to ServerUser(s)
+    public void sendAwayStatus(long clientId, boolean isAway) {
+        // sync away status to all clients in room
+        clientsInRoom.values().forEach(spInRoom -> {
+            boolean failedToSend = !spInRoom.sendAwayStatus(clientId, isAway);
+            if (failedToSend) {
+                removeClient(spInRoom);
+            }
+        });
+    }
+
+    public void sendGameEvent(String v) {
+        // sync game event to all clients in room
+        clientsInRoom.values().forEach(spInRoom -> {
+            boolean failedToSend = !spInRoom.sendGameEvent(v);
+            if (failedToSend) {
+                removeClient(spInRoom);
+            }
+        });
+    }
+
     public void sendFlipDown() {
         // sync flip down to all clients in room
         clientsInRoom.values().forEach(spInRoom -> {
@@ -400,6 +426,24 @@ public class GameRoom extends BaseGameRoom {
     // end check methods
 
     // receive data from ServerThread (GameRoom specific)
+    protected void handleAwayAction(ServerThread sender) {
+        try {
+            checkPlayerInRoom(sender);
+            sender.setAway(!sender.isAway());
+            if (sender.isAway()) {
+                sendGameEvent(String.format("%s is away", sender.getDisplayName()));
+            } else {
+                sendGameEvent(String.format("%s is back", sender.getDisplayName()));
+            }
+            sendAwayStatus(sender.getClientId(), sender.isAway());
+        } catch (PlayerNotFoundException e) {
+            sender.sendMessage(Constants.DEFAULT_CLIENT_ID, "You must be in a GameRoom to do the ready check");
+            LoggerUtil.INSTANCE.severe("handleAwayAction exception", e);
+        } catch (Exception e) {
+            LoggerUtil.INSTANCE.severe("handleAwayAction exception", e);
+        }
+    }
+
     protected void handlePickAction(ServerThread sender, int x, int y) {
         // check if the client is in the room
         try {
@@ -407,6 +451,11 @@ public class GameRoom extends BaseGameRoom {
             checkCurrentPhase(sender, Phase.IN_PROGRESS);
             checkCurrentPlayer(sender.getClientId());
             checkIsReady(sender);
+            if (sender.isAway()) {
+                sender.sendMessage(Constants.DEFAULT_CLIENT_ID,
+                        "You are currently marked as away, please return to play");
+                return;
+            }
             if (sender.didTakeTurn()) {
                 sender.sendMessage(Constants.DEFAULT_CLIENT_ID, "You have already taken your turn this round");
                 return;

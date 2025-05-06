@@ -145,6 +145,7 @@ public abstract class BaseGameRoom extends Room {
             resetReadyTimer();
             onSessionStart();
         } else {
+            resetReadyTimer();
             onSessionEnd();
         }
     }

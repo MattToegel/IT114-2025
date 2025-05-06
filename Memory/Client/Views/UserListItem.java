@@ -14,7 +14,8 @@ import javax.swing.border.EmptyBorder;
 public class UserListItem extends JPanel {
     private JEditorPane textContainer;
     private JPanel turnIndicator = new JPanel();
-    private JEditorPane pointsPanel = new JEditorPane("text/plain","");
+    private JEditorPane pointsPanel = new JEditorPane("text/plain", "");
+    private String clientName;
 
     /**
      * Constructor to create a UserListItem.
@@ -24,7 +25,8 @@ public class UserListItem extends JPanel {
      * @param parent     The parent container to calculate available width.
      */
     public UserListItem(long clientId, String clientName, JPanel parent) {
-        textContainer = new JEditorPane("text/plain", clientName);
+        textContainer = new JEditorPane("text/html", clientName);
+        this.clientName = clientName;
         textContainer.setName(Long.toString(clientId));
         textContainer.setEditable(false);
         textContainer.setBorder(new EmptyBorder(0, 0, 0, 0)); // Add padding
@@ -56,18 +58,22 @@ public class UserListItem extends JPanel {
     public String getClientName() {
         return textContainer.getText();
     }
+
     /**
-     * Mostly used to trigger a reset, but if used for a true value, it'll apply Color.GREEN
+     * Mostly used to trigger a reset, but if used for a true value, it'll apply
+     * Color.GREEN
+     * 
      * @param didTakeTurn
      */
-    public void setTurn(boolean didTakeTurn){
+    public void setTurn(boolean didTakeTurn) {
         setTurn(didTakeTurn, Color.GREEN);
     }
-    
+
     /**
      * Sets the indicator and color based on turn status
+     * 
      * @param didTaketurn if true, applies trueColor; otherwise applies transparent
-     * @param trueColor Color to apply when true
+     * @param trueColor   Color to apply when true
      */
     public void setTurn(boolean didTaketurn, Color trueColor) {
         turnIndicator.setBackground(didTaketurn ? trueColor : new Color(0, 0, 0, 0));
@@ -80,12 +86,20 @@ public class UserListItem extends JPanel {
             pointsPanel.setVisible(false);
         } else {
             pointsPanel.setText(points + "");
-            if(!pointsPanel.isVisible()){
+            if (!pointsPanel.isVisible()) {
                 pointsPanel.setVisible(true);
                 invalidate();
             }
-            
+
         }
         repaint();
+    }
+
+    public void setAway(boolean isAway) {
+        if (isAway) {
+            textContainer.setText(String.format("<font color=gray>%s</font>", clientName));
+        } else {
+            textContainer.setText(clientName);
+        }
     }
 }

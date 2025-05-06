@@ -21,6 +21,7 @@ import javax.swing.border.EmptyBorder;
 import Memory.Client.Client;
 import Memory.Client.Interfaces.IPointsEvent;
 import Memory.Client.Interfaces.IReadyEvent;
+import Memory.Client.Interfaces.IStatusEvents;
 import Memory.Client.Interfaces.ITurnEvent;
 import Memory.Common.Constants;
 import Memory.Common.LoggerUtil;
@@ -28,7 +29,7 @@ import Memory.Common.LoggerUtil;
 /**
  * UserListPanel represents a UI component that displays a list of users.
  */
-public class UserListPanel extends JPanel implements IReadyEvent, IPointsEvent, ITurnEvent {
+public class UserListPanel extends JPanel implements IReadyEvent, IPointsEvent, ITurnEvent, IStatusEvents {
     private JPanel userListArea;
     private GridBagConstraints lastConstraints; // Keep track of the last constraints for the glue
     private HashMap<Long, UserListItem> userItemsMap; // Maintain a map of client IDs to UserListItems
@@ -225,6 +226,27 @@ public class UserListPanel extends JPanel implements IReadyEvent, IPointsEvent, 
             SwingUtilities.invokeLater(() -> {
                 try {
                     userItemsMap.get(clientId).setTurn(isReady, Color.GRAY);
+                } catch (Exception e) {
+                    LoggerUtil.INSTANCE.severe("Error setting user item", e);
+                }
+            });
+        }
+    }
+
+    @Override
+    public void onReceiveAway(long clientId, boolean isAway) {
+        if (clientId == Constants.DEFAULT_CLIENT_ID) {
+            SwingUtilities.invokeLater(() -> {
+                try {
+                    userItemsMap.values().forEach(u -> u.setAway(false));// reset all
+                } catch (Exception e) {
+                    LoggerUtil.INSTANCE.severe("Error resetting user items", e);
+                }
+            });
+        } else if (userItemsMap.containsKey(clientId)) {
+            SwingUtilities.invokeLater(() -> {
+                try {
+                    userItemsMap.get(clientId).setAway(isAway);
                 } catch (Exception e) {
                     LoggerUtil.INSTANCE.severe("Error setting user item", e);
                 }

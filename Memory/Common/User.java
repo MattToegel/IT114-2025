@@ -10,6 +10,8 @@ public class User {
     private boolean tookTurn = false;
     private List<Coord> selections = new ArrayList<>();
     private int points;
+    private boolean isAway = false;
+    private boolean isSpectator = false;
 
     /**
      * Server-side points
@@ -19,6 +21,34 @@ public class User {
     public void changePoints(int p) {
         this.points += p;
         this.points = Math.max(0, this.points);
+    }
+
+    /**
+     * @return the isSpectator
+     */
+    public boolean isSpectator() {
+        return isSpectator;
+    }
+
+    /**
+     * @param isSpectator the isSpectator to set
+     */
+    public void setSpectator(boolean isSpectator) {
+        this.isSpectator = isSpectator;
+    }
+
+    /**
+     * @return the isAway
+     */
+    public boolean isAway() {
+        return isAway;
+    }
+
+    /**
+     * @param isAway the isAway to set
+     */
+    public void setAway(boolean isAway) {
+        this.isAway = isAway;
     }
 
     public int getPoints() {

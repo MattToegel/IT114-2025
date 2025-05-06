@@ -16,7 +16,8 @@ public enum Command {
     LIST_ROOMS("listrooms"),
     READY("ready"),
     DO_SOMETHING("something"),
-    PICK("pick"),;
+    PICK("pick"),
+    AWAY("away");
 
     private static final HashMap<String, Command> BY_COMMAND = new HashMap<>();
     static {

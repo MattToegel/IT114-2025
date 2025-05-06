@@ -2,6 +2,7 @@ package Memory.Client.Views;
 
 import java.awt.BorderLayout;
 import java.awt.CardLayout;
+import java.awt.Point;
 import java.awt.event.ComponentAdapter;
 import java.awt.event.ComponentEvent;
 import java.io.IOException;
@@ -25,23 +26,10 @@ public class GamePanel extends JPanel implements IRoomEvents, IPhaseEvent {
     private CardLayout cardLayout;
     private static final String READY_PANEL = "READY";
     private static final String PLAY_PANEL = "PLAY";// example panel for this lesson
-    JPanel buttonPanel = new JPanel();
 
     @SuppressWarnings("unused")
     public GamePanel(ICardControls controls) {
         super(new BorderLayout());
-
-        // Create the buttons and add them to a panel
-        JButton doSomething = new JButton("Do Something");
-        doSomething.addActionListener(event -> {
-            try {
-                Client.INSTANCE.sendDoTurn("example");
-            } catch (IOException e) {
-                // TODO Auto-generated catch block
-                e.printStackTrace();
-            }
-        });
-        buttonPanel.add(doSomething);
 
         JPanel gameContainer = new JPanel(new CardLayout());
         cardLayout = (CardLayout) gameContainer.getLayout();
@@ -54,7 +42,10 @@ public class GamePanel extends JPanel implements IRoomEvents, IPhaseEvent {
 
         playPanel = new JPanel();
         playPanel.setName(PLAY_PANEL);
-        playPanel.add(buttonPanel);
+        GridPanel gridPanel = new GridPanel(this::handleCellSelection);
+        // handPanel.setPreferredSize(new Dimension(Integer.MAX_VALUE, 150));
+        playPanel.setLayout(new BorderLayout());
+        playPanel.add(gridPanel, BorderLayout.CENTER);
         gameContainer.add(PLAY_PANEL, playPanel);
 
         GameEventsPanel gameEventsPanel = new GameEventsPanel();
@@ -77,8 +68,30 @@ public class GamePanel extends JPanel implements IRoomEvents, IPhaseEvent {
         });
 
         this.add(splitPane, BorderLayout.CENTER);
+
+        JPanel interactions = new JPanel();
+        JButton awayButton = new JButton("Toggle Away");
+        awayButton.addActionListener(event -> {
+            try {
+                Client.INSTANCE.sendAway();
+            } catch (IOException e1) {
+                // TODO Auto-generated catch block
+                e1.printStackTrace();
+            }
+        });
+        interactions.add(awayButton);
+        this.add(interactions, BorderLayout.SOUTH);
+
         controls.addPanel(CardView.CHAT_GAME_SCREEN.name(), this);
         setVisible(false);
+    }
+
+    private void handleCellSelection(Point p) {
+        try {
+            Client.INSTANCE.sendPickLocation((int) p.getX(), (int) p.getY());
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
     }
 
     @Override
@@ -101,10 +114,8 @@ public class GamePanel extends JPanel implements IRoomEvents, IPhaseEvent {
         }
         if (phase == Phase.READY) {
             cardLayout.show(playPanel.getParent(), READY_PANEL);
-            buttonPanel.setVisible(false);
         } else if (phase == Phase.IN_PROGRESS) {
             cardLayout.show(playPanel.getParent(), PLAY_PANEL);
-            buttonPanel.setVisible(true);
         }
     }
 
