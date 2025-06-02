@@ -63,9 +63,11 @@ public class BaseClass {
                 break;
             case 2:
                 System.out.println("Objective: Print out the total sum of the passed array");
+                break;
             case 3:
                 System.out.println(
                         "Objective: Make each array value positive, convert it back to the original data type, and assign it to the proper slot in the `output` array");
+                break;
             case 4:
                 System.out.println(
                         "Objective: \n" +
@@ -76,7 +78,7 @@ public class BaseClass {
                                 "Challenge 4: Extract middle 3 characters (beginning starts at middle of phrase),\n" +
                                 "assign to 'placeholderForMiddleCharacters'\n" +
                                 "if not enough characters assign \"Not enough characters\"");
-
+                break;
             default:
                 break;
         }
