@@ -113,13 +113,15 @@ public class ServerThread extends BaseServerThread {
     /**
      * Sends a message to the client
      * 
+     * @param clientId who it's from
      * @param message
      * @return true for successful send
      */
-    protected boolean sendMessage(String message) {
+    protected boolean sendMessage(long clientId, String message) {
         Payload payload = new Payload();
         payload.setPayloadType(PayloadType.MESSAGE);
         payload.setMessage(message);
+        payload.setClientId(clientId);
         return sendToClient(payload);
     }
 
@@ -130,7 +132,7 @@ public class ServerThread extends BaseServerThread {
         switch (incoming.getPayloadType()) {
             case CLIENT_CONNECT:
                 setClientName(((ConnectionPayload) incoming).getClientName().trim());
-               
+
                 break;
             case DISCONNECT:
                 currentRoom.handleDisconnect(this);
