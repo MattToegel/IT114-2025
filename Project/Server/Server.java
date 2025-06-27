@@ -151,11 +151,19 @@ public enum Server {
         next.addClient(client);
     }
 
+    /**
+     * Lists all rooms that partially match the given String
+     * 
+     * @param roomQuery
+     * @return
+     */
     protected List<String> listRooms(String roomQuery) {
         final String nameCheck = roomQuery.toLowerCase();
         return rooms.values().stream()
                 .filter(room -> room.getName().toLowerCase().contains(nameCheck))// find partially matched rooms
                 .map(room -> room.getName())// map room to String (name)
+                .limit(10) // limit to 10 results
+                .sorted() // sort the results alphabetically
                 .collect(Collectors.toList()); // return a mutable list
     }
 

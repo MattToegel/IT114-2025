@@ -10,6 +10,7 @@ if [[ " $@ " =~ " -d " ]]; then
     debug=true
 fi
 if $debug; then
+    # Used for binding to vs code debug mode
     debugArg="-agentlib:jdwp=transport=dt_socket,server=y,address=5005"
     echo "Debug mode is ON"
 fi
@@ -23,5 +24,5 @@ elif [ "$input" = "ui" ]; then
 	java $debugArg $1.Client.ClientUI
 	# Milestone 3's new entry point
 else
-    echo "Must specify client or server"
+    echo "Must specify client or server for MS2 or ui or server for MS3"
 fi
