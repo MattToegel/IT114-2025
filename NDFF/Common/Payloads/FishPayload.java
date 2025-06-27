@@ -2,7 +2,7 @@ package NDFF.Common.Payloads;
 
 import NDFF.Common.CatchData;
 
-public class FishPayload extends CoordPayoad {
+public class FishPayload extends CoordPayload {
     private CatchData fishQuantity;
 
     public FishPayload(int x, int y, CatchData fishQuantity) {

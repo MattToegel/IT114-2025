@@ -23,7 +23,7 @@ import NDFF.Common.RoomAction;
 import NDFF.Common.TextFX;
 import NDFF.Common.User;
 import NDFF.Common.Payloads.ConnectionPayload;
-import NDFF.Common.Payloads.CoordPayoad;
+import NDFF.Common.Payloads.CoordPayload;
 import NDFF.Common.Payloads.FishPayload;
 import NDFF.Common.Payloads.PayloadType;
 import NDFF.Common.Payloads.ReadyPayload;
@@ -262,7 +262,7 @@ public enum Client {
 
     // Start Send*() methods
     private void sendCast(int x, int y) throws IOException {
-        CoordPayoad cp = new CoordPayoad(x, y);
+        CoordPayload cp = new CoordPayload(x, y);
         cp.setPayloadType(PayloadType.CAST);
         sendToServer(cp);
     }
@@ -272,7 +272,7 @@ public enum Client {
         // An actual turn may include other data for your project
         ReadyPayload rp = new ReadyPayload();
         rp.setPayloadType(PayloadType.TURN);
-        rp.setReady(true); // <- techically not needed as we'll use the payload type as a trigger
+        rp.setReady(true); // <- technically not needed as we'll use the payload type as a trigger
         rp.setMessage(text);
         sendToServer(rp);
     }
@@ -285,7 +285,7 @@ public enum Client {
      */
     private void sendReady() throws IOException {
         ReadyPayload rp = new ReadyPayload();
-        rp.setReady(true); // <- techically not needed as we'll use the payload type as a trigger
+        rp.setReady(true); // <- technically not needed as we'll use the payload type as a trigger
         sendToServer(rp);
     }
 
@@ -700,7 +700,7 @@ public enum Client {
                 }
             }
         } catch (IOException ioException) {
-            LoggerUtil.INSTANCE.severe("Error in listentToInput()", ioException);
+            LoggerUtil.INSTANCE.severe("Error in listenToInput()", ioException);
             // ioException.printStackTrace();
         }
         LoggerUtil.INSTANCE.info("listenToInput thread stopped");

@@ -14,7 +14,7 @@ import NDFF.Common.Phase;
 import NDFF.Common.RoomAction;
 import NDFF.Common.TextFX;
 import NDFF.Common.Payloads.ConnectionPayload;
-import NDFF.Common.Payloads.CoordPayoad;
+import NDFF.Common.Payloads.CoordPayload;
 import NDFF.Common.Payloads.FishPayload;
 import NDFF.Common.Payloads.PayloadType;
 import NDFF.Common.Payloads.ReadyPayload;
@@ -260,7 +260,7 @@ public class ServerThread extends BaseServerThread {
             case CAST:
                 try {
                     // cast to GameRoom as the subclass will handle all Game logic
-                    CoordPayoad cp = (CoordPayoad) incoming;
+                    CoordPayload cp = (CoordPayload) incoming;
                     ((GameRoom) currentRoom).handleCastAction(this, cp.getX(), cp.getY());
                 } catch (Exception e) {
                     sendMessage(Constants.DEFAULT_CLIENT_ID, "You must be in a GameRoom to do a cast");

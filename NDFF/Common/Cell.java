@@ -24,9 +24,9 @@ public class Cell {
     public void initialize() {
         this.baseProbability = 0.3f + (float) Math.random() * (0.65f - 0.3f);
 
-        int fishspawn = 1 + (int) (Math.random() * 5);
+        int fishSpawn = 1 + (int) (Math.random() * 5);
         fish.clear(); // clear any existing fish before initializing
-        for (int i = 0; i < fishspawn; i++) {
+        for (int i = 0; i < fishSpawn; i++) {
             // this.fish.add(new Spawn());
             // random fish type and quantity
             FishType fishType = FishType.values()[(int) (Math.random() * FishType.values().length)];
