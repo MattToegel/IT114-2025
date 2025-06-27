@@ -503,7 +503,11 @@ public enum Client {
             return;
         }
         User cp = knownClients.get(fp.getClientId());
-        cp.addFish(fp.getFishQuantity().getFishType(), fp.getFishQuantity().getQuantity());
+        // null fish type is used as a notification of an empty cell
+        if (fp.getFishQuantity() != null && fp.getFishQuantity().getFishType() != null) {
+            cp.addFish(fp.getFishQuantity().getFishType(), fp.getFishQuantity().getQuantity());
+        }
+
         // update grid and display
         // NOTE: Client-side shows known catches in the grid vs server-side that shows
         // remaining fish
@@ -513,7 +517,7 @@ public enum Client {
                     .warning(String.format("Cell at (%d, %d) is null, cannot set fish count", fp.getX(), fp.getY()));
             return;
         }
-        if (fp.getFishQuantity() == null) {
+        if (fp.getFishQuantity() == null || fp.getFishQuantity().getFishType() == null) {
             cell.clearFish();
         } else {
             cell.changeFishCount(fp.getFishQuantity().getFishType(), fp.getFishQuantity().getQuantity());
