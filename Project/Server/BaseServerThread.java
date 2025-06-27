@@ -184,6 +184,10 @@ public abstract class BaseServerThread extends Thread {
                     info("IO exception while reading from client");
                     e.printStackTrace();
                     break;
+                } catch (Exception e) {
+                    info("Unexpected exception while reading from client");
+                    e.printStackTrace();
+                    break;
                 }
             } // close while loop
         } catch (Exception e) {
