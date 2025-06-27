@@ -242,7 +242,7 @@ public class GameRoom extends BaseGameRoom {
     private ServerThread getCurrentPlayer() throws MissingCurrentPlayerException, PlayerNotFoundException {
         // quick early exit
         if (currentTurnClientId == Constants.DEFAULT_CLIENT_ID) {
-            throw new MissingCurrentPlayerException("Current Plaer not set");
+            throw new MissingCurrentPlayerException("Current Player not set");
         }
         return turnOrder.stream()
                 .filter(sp -> sp.getClientId() == currentTurnClientId)

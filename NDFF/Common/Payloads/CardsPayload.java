@@ -5,7 +5,7 @@ import java.util.List;
 
 import NDFF.Common.Card;
 
-public class CardsPayload extends CoordPayoad {
+public class CardsPayload extends CoordPayload {
     private List<Card> cards = new ArrayList<>();
 
     public CardsPayload(List<Card> cards) {

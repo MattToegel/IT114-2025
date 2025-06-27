@@ -2,11 +2,11 @@ package NDFF.Common.Payloads;
 
 import NDFF.Common.Payload;
 
-public class CoordPayoad extends Payload {
+public class CoordPayload extends Payload {
     private int x;
     private int y;
 
-    public CoordPayoad(int x, int y) {
+    public CoordPayload(int x, int y) {
         this.x = x;
         this.y = y;
         setPayloadType(PayloadType.USE);
