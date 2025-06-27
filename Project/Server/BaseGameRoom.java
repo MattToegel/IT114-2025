@@ -277,8 +277,8 @@ public abstract class BaseGameRoom extends Room {
         }
     }
 
-    protected void checkIsReady(ServerThread client) throws NotReadyException{
-        if(!client.isReady()){
+    protected void checkIsReady(ServerThread client) throws NotReadyException {
+        if (!client.isReady()) {
             client.sendMessage(Constants.DEFAULT_CLIENT_ID, "You must be marked 'ready' to do this action");
             throw new NotReadyException("Not ready");
         }
