@@ -23,7 +23,7 @@ public class CatchData implements Serializable {
         if (this.quantity + quantity < 0) {
             throw new IllegalArgumentException("Resulting quantity cannot be negative");
         }
-        this.quantity = quantity;
+        this.quantity += quantity;
     }
 
     @Override
