@@ -2,6 +2,7 @@ package NDFF.Common;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Random;
 
 public class Cell {
     private float baseProbability;
@@ -10,6 +11,7 @@ public class Cell {
     private List<CatchData> fish = new ArrayList<>();
     private int row;
     private int col;
+    private static Random random = new Random();
 
     public Cell(int row, int col) {
         this.row = row;
@@ -27,10 +29,9 @@ public class Cell {
         int fishSpawn = 1 + (int) (Math.random() * 5);
         fish.clear(); // clear any existing fish before initializing
         for (int i = 0; i < fishSpawn; i++) {
-            // this.fish.add(new Spawn());
             // random fish type and quantity
-            FishType fishType = FishType.values()[(int) (Math.random() * FishType.values().length)];
-            int quantity = 5 + (int) (Math.random() * 11); // random quantity between 5 and 15
+            FishType fishType = FishType.values()[Cell.random.nextInt(FishType.values().length)];
+            int quantity = 5 + Cell.random.nextInt(11); // Random quantity between 5 and 15
             this.fish.add(new CatchData(fishType, quantity));
         }
         System.out.println("Initialized: " + this.toString());
@@ -125,8 +126,8 @@ public class Cell {
         }
 
         // randomly select a CatchData from the fish list
-        CatchData potential = fish.get((int) (Math.random() * fish.size()));
-        int catchQuantity = 1 + (int) (Math.random() * potential.getQuantity());
+        CatchData potential = fish.get(Cell.random.nextInt(fish.size()));
+        int catchQuantity = 1 + Cell.random.nextInt(potential.getQuantity()); // Randomly catch 1 to max quantity
         if (potential.getQuantity() - catchQuantity == 0) {
             fish.remove(potential); // Remove if no fish left
             LoggerUtil.INSTANCE.info("Removing empty fish data from Cell[" + row + "][" + col + "]");
