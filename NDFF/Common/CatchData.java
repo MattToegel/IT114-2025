@@ -28,6 +28,6 @@ public class CatchData implements Serializable {
 
     @Override
     public String toString() {
-        return String.format("%s x %d", fishType.name(), quantity);
+        return String.format("%s x %d", (fishType!=null?fishType.name():"null"), quantity);
     }
 }
