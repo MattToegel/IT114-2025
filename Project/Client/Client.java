@@ -370,6 +370,8 @@ public enum Client {
                 LoggerUtil.INSTANCE.warning("Connection dropped");
                 e.printStackTrace();
             }
+        } catch (Exception e) {
+            LoggerUtil.INSTANCE.severe("Unexpected error in listenToServer()", e);
         } finally {
             closeServerConnection();
         }
