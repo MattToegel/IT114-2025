@@ -12,6 +12,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import NDFF.Common.Card;
 import NDFF.Common.Cell;
 import NDFF.Common.Command;
 import NDFF.Common.Constants;
@@ -22,6 +23,7 @@ import NDFF.Common.Phase;
 import NDFF.Common.RoomAction;
 import NDFF.Common.TextFX;
 import NDFF.Common.User;
+import NDFF.Common.Payloads.CardsPayload;
 import NDFF.Common.Payloads.ConnectionPayload;
 import NDFF.Common.Payloads.CoordPayoad;
 import NDFF.Common.Payloads.FishPayload;
@@ -38,6 +40,7 @@ public enum Client {
     INSTANCE;
 
     {
+
         // statically initialize the client-side LoggerUtil
         LoggerUtil.LoggerConfig config = new LoggerUtil.LoggerConfig();
         config.setFileSizeLimit(2048 * 1024); // 2MB
@@ -253,6 +256,68 @@ public enum Client {
                     return true;
                 }
                 wasCommand = true;
+            } else if (text.startsWith(Command.USE.command)) {
+                // Note: This is just an example command, you can replace it with your own logic
+                text = text.replace(Command.USE.command, "").trim();
+                // command is `/use <card index> (optional)<x>,<y>`, not all cards require
+                // coordinates, determined by card.requiresCoordinates()
+
+                String[] parts = text.split(" ");
+                if (parts.length < 1 || parts.length > 3) {
+                    LoggerUtil.INSTANCE.warning(
+                            TextFX.colorize("Usage: /use <card index> [<x>,<y>]", Color.RED));
+                    return true;
+                }
+                int cardIndex;
+                try {
+                    cardIndex = Integer.parseInt(parts[0].trim()) - 1;
+                } catch (NumberFormatException e) {
+                    LoggerUtil.INSTANCE.warning(
+                            TextFX.colorize("Card index must be an integer. Usage: /use <card index> [<x>,<y>]",
+                                    Color.RED));
+                    return true;
+                }
+                int x = -1, y = -1; // default values for coordinates
+                String[] coords = (parts.length >= 2 ? parts[1].trim() : "").split(",");
+                try {
+                    x = Integer.parseInt(coords[0].trim());
+                } catch (Exception e) {
+                    // ignore, will be set to -1
+                }
+                try {
+                    y = Integer.parseInt(coords[1].trim());
+                } catch (Exception e) {
+                    // ignore, will be set to -1
+                }
+                if (cardIndex < 0 || cardIndex >= myUser.getCards().size()) {
+                    LoggerUtil.INSTANCE.warning(
+                            TextFX.colorize("Card index out of bounds. Usage: /use <card index> [<x>,<y>]", Color.RED));
+                    return true;
+                }
+                Card card = myUser.getCards().get(cardIndex);
+                // Note: we won't assume it works, so we don't modify local state, simply send
+                // the data
+                // Server will confirm any changes
+                if (card.requiresCoordinates()) {
+                    // check if coordinates are provided
+                    if (grid.isValidCoordinate(x, y)) {
+                        // send card
+                        sendUseCard(card, x, y);
+                    } else {
+                        LoggerUtil.INSTANCE.warning(TextFX.colorize("Coordinates out of bounds", Color.RED));
+                        return true;
+                    }
+                } else {
+                    // no coordinates needed
+                    // send card
+                    sendUseCard(card);
+                }
+
+                LoggerUtil.INSTANCE.info(TextFX.colorize("Using: " + text, Color.GREEN));
+                wasCommand = true;
+            } else if (text.equalsIgnoreCase(Command.HAND.command)) {
+                showHand();
+                wasCommand = true;
             } else {
                 LoggerUtil.INSTANCE.warning(TextFX.colorize("Unknown command: " + text, Color.RED));
             }
@@ -260,7 +325,41 @@ public enum Client {
         return wasCommand;
     }
 
+    // misc
+    private void showHand() {
+        StringBuilder sb = new StringBuilder();
+        int i = 0;
+        for (Card card : myUser.getCards()) {
+            String cardData = String.format("%d - %s - %s \n[%s]", i + 1, card.getType(), card.getValue(),
+                    card.getDescription());
+            sb.append(cardData).append(System.lineSeparator());
+            i++;
+        }
+        LoggerUtil.INSTANCE.info(TextFX.colorize("Your current hand:" + System.lineSeparator() + sb, Color.GREEN));
+    }
+    // end misc
+
     // Start Send*() methods
+    private void sendUseCard(Card card, int x, int y) throws IOException {
+        if (card == null) {
+            LoggerUtil.INSTANCE.warning(TextFX.colorize("Card is null, cannot send", Color.RED));
+            return;
+        }
+        CardsPayload payload = new CardsPayload(x, y, List.of(card));
+        payload.setPayloadType(PayloadType.USE);
+        sendToServer(payload);
+    }
+
+    private void sendUseCard(Card card) throws IOException {
+        if (card == null) {
+            LoggerUtil.INSTANCE.warning(TextFX.colorize("Card is null, cannot send", Color.RED));
+            return;
+        }
+        CardsPayload payload = new CardsPayload(List.of(card));
+        payload.setPayloadType(PayloadType.USE);
+        sendToServer(payload);
+    }
+
     private void sendCast(int x, int y) throws IOException {
         CoordPayoad cp = new CoordPayoad(x, y);
         cp.setPayloadType(PayloadType.CAST);
@@ -475,6 +574,15 @@ public enum Client {
             case PayloadType.FISH:
                 processFishResult(payload);
                 break;
+            case PayloadType.CARDS: // sync hand
+                processCardsSync(payload);
+                break;
+            case PayloadType.CARDS_ADD: // add card to hand
+                processCardsChange(payload, true);
+                break;
+            case PayloadType.CARDS_REMOVE: // remove card from hand
+                processCardsChange(payload, false);
+                break;
             default:
                 LoggerUtil.INSTANCE.warning(TextFX.colorize("Unhandled payload type", Color.YELLOW));
                 break;
@@ -483,6 +591,78 @@ public enum Client {
     }
 
     // Start process*() methods
+    private void processCardsChange(Payload payload, boolean isAdd) {
+        if (!(payload instanceof CardsPayload)) {
+            error("Invalid payload subclass for processCardsChange");
+            return;
+        }
+        CardsPayload cp = (CardsPayload) payload;
+
+        // Note: This block is if we track cards of other players (not in this case)
+        /*
+         * if (!knownClients.containsKey(cp.getClientId())) {
+         * LoggerUtil.INSTANCE.severe(String.
+         * format("Received card change for client id %s who is not known",
+         * cp.getClientId()));
+         * return;
+         * }
+         * User cpUser = knownClients.get(cp.getClientId());
+         * if (cp.getCards() == null || cp.getCards().isEmpty()) {
+         * LoggerUtil.INSTANCE.warning(String.format("No cards to %s for client id %s",
+         * isAdd ? "add" : "remove", cp.getClientId()));
+         * return;
+         * }
+         * // loop over cp.getCards() and add/remove one by one
+         * for (Card card : cp.getCards()) {
+         * if (isAdd) {
+         * cpUser.addCard(card);
+         * LoggerUtil.INSTANCE.info(String.format("Added card %s to %s's hand", card,
+         * cpUser.getDisplayName()));
+         * } else {
+         * cpUser.removeCard(card);
+         * LoggerUtil.INSTANCE.info(String.format("Removed card %s from %s's hand",
+         * card, cpUser.getDisplayName()));
+         * }
+         * }
+         */
+        for (Card card : cp.getCards()) {
+            if (isAdd) {
+                myUser.addCard(card);
+                LoggerUtil.INSTANCE.info(String.format("Added card %s to your hand", card));
+            } else {
+                myUser.removeCard(card);
+                LoggerUtil.INSTANCE.info(String.format("Removed card %s from your hand", card));
+            }
+        }
+    }
+
+    private void processCardsSync(Payload payload) {
+        if (!(payload instanceof CardsPayload)) {
+            error("Invalid payload subclass for processCardSync");
+            return;
+        }
+        CardsPayload cp = (CardsPayload) payload;
+
+        // This block is if we track cards of other players (not in this case)
+        /*
+         * if (!knownClients.containsKey(cp.getClientId())) {
+         * LoggerUtil.INSTANCE.severe(String.
+         * format("Received card sync for client id %s who is not known",
+         * cp.getClientId()));
+         * return;
+         * }
+         * User cpUser = knownClients.get(cp.getClientId());
+         * if (cp.getCards() == null || cp.getCards().isEmpty()) {
+         * LoggerUtil.INSTANCE.warning(String.format("No cards to sync for client id %s"
+         * , cp.getClientId()));
+         * return;
+         * }
+         * cpUser.syncCards(cp.getCards());
+         */
+        myUser.syncCards(cp.getCards());
+        showHand();
+    }
+
     private void processFishResult(Payload payload) {
         if (!(payload instanceof FishPayload)) {
             error("Invalid payload subclass for processFishResult");

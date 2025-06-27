@@ -74,6 +74,48 @@ public class Grid {
         cells = null; // clear the reference to the grid
     }
 
+    public void changeTempProbability(int row, int col, float change) {
+        if (isValidCoordinate(row, col)) {
+            Cell cell = cells[row][col];
+            if (cell != null) {
+                cell.changeTempProbability(change);
+            }
+        } else {
+            throw new IllegalArgumentException("Invalid grid coordinates");
+        }
+    }
+
+    public void changeLongTermProbability(int row, int col, float change) {
+        if (isValidCoordinate(row, col)) {
+            Cell cell = cells[row][col];
+            if (cell != null) {
+                cell.changeLongTermProbability(change);
+            }
+        } else {
+            throw new IllegalArgumentException("Invalid grid coordinates");
+        }
+    }
+
+    public void resetTempProbability(int row, int col) {
+        if (row == -1 && col == -1) {
+            // Reset all cells if row and col are -1
+            for (int i = 0; i < cells.length; i++) {
+                for (int j = 0; j < cells[i].length; j++) {
+                    if (cells[i][j] != null) {
+                        cells[i][j].resetTempProbability();
+                    }
+                }
+            }
+        } else if (isValidCoordinate(row, col)) {
+            Cell cell = cells[row][col];
+            if (cell != null) {
+                cell.resetTempProbability();
+            }
+        } else {
+            throw new IllegalArgumentException("Invalid grid coordinates");
+        }
+    }
+
     @Override
     public String toString() {
 

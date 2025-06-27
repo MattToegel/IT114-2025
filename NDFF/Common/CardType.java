@@ -1,0 +1,8 @@
+package NDFF.Common;
+
+public enum CardType {
+    CATCH_MULTIPLIER,
+    LONG_TERM_PROBABILITY,
+    TEMPORARY_PROBABILITY,
+    FISHING_ATTEMPTS
+}

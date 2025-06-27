@@ -27,4 +27,7 @@ public enum PayloadType {
        USE, // used to trigger a card action
        CAST, // used to try to fish a coordinate
        FISH, // used to sync fishing result
+       CARDS, // used to sync card changes
+       CARDS_ADD, // used to sync card additions
+       CARDS_REMOVE, // used to sync card removals
 }

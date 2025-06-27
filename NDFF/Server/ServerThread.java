@@ -6,6 +6,7 @@ import java.util.Objects;
 import java.util.function.Consumer;
 
 import NDFF.Common.Constants;
+import NDFF.Common.Card;
 import NDFF.Common.CatchData;
 import NDFF.Common.FishType;
 import NDFF.Common.LoggerUtil;
@@ -13,6 +14,7 @@ import NDFF.Common.Payload;
 import NDFF.Common.Phase;
 import NDFF.Common.RoomAction;
 import NDFF.Common.TextFX;
+import NDFF.Common.Payloads.CardsPayload;
 import NDFF.Common.Payloads.ConnectionPayload;
 import NDFF.Common.Payloads.CoordPayoad;
 import NDFF.Common.Payloads.FishPayload;
@@ -26,6 +28,31 @@ import NDFF.Common.TextFX.Color;
  */
 public class ServerThread extends BaseServerThread {
     private Consumer<ServerThread> onInitializationComplete; // callback to inform when this object is ready
+    // server-side only data
+    private float catchMultiplier = 0; // multiplier for catch probability
+    private int fishingAttempts = 0; // number of fishing attempts made by the client
+
+    protected float getCatchMultiplier() {
+        return catchMultiplier;
+    }
+
+    protected void adjustCatchMultiplier(float change) {
+        this.catchMultiplier += change;
+        if (this.catchMultiplier < 0) {
+            this.catchMultiplier = 0; // prevent negative multiplier
+        }
+    }
+
+    protected int getFishingAttempts() {
+        return fishingAttempts;
+    }
+
+    protected void adjustFishingAttempts(int change) {
+        this.fishingAttempts += change;
+        if (this.fishingAttempts < 0) {
+            this.fishingAttempts = 0; // prevent negative attempts
+        }
+    }
 
     /**
      * A wrapper method so we don't need to keep typing out the long/complex sysout
@@ -59,6 +86,25 @@ public class ServerThread extends BaseServerThread {
     }
 
     // Start Send*() Methods
+    public boolean sendModifyHand(Card card, boolean isAdd) {
+        CardsPayload cp = new CardsPayload(List.of(card));
+        cp.setPayloadType(isAdd ? PayloadType.CARDS_ADD : PayloadType.CARDS_REMOVE);
+        return sendToClient(cp);
+    }
+
+    /**
+     * Sends the current hand of cards to the client.
+     * Doesn't take data as the cards are already stored in the User object.
+     * Chose to explicitly create a method for more precise sync control versus
+     * adding auto syning in the add/remove methods.
+     * 
+     * @return
+     */
+    public boolean sendCurrentHand() {
+        CardsPayload cp = new CardsPayload(getCards());
+        cp.setPayloadType(PayloadType.CARDS);
+        return sendToClient(cp);
+    }
 
     public boolean sendCaughtFishUpdate(long clientId, int x, int y, CatchData caughtFish) {
         FishPayload fp = new FishPayload(x, y, caughtFish);
@@ -258,13 +304,21 @@ public class ServerThread extends BaseServerThread {
                 }
                 break;
             case CAST:
-                // no data needed as the intent will be used as the trigger
                 try {
                     // cast to GameRoom as the subclass will handle all Game logic
                     CoordPayoad cp = (CoordPayoad) incoming;
                     ((GameRoom) currentRoom).handleCastAction(this, cp.getX(), cp.getY());
                 } catch (Exception e) {
                     sendMessage(Constants.DEFAULT_CLIENT_ID, "You must be in a GameRoom to do a cast");
+                }
+                break;
+            case USE:
+                try {
+                    CardsPayload cp = (CardsPayload) incoming;
+                    // cast to GameRoom as the subclass will handle all Game logic
+                    ((GameRoom) currentRoom).handleUseCard(this, cp.getX(), cp.getY(), cp.getCards());
+                } catch (Exception e) {
+                    sendMessage(Constants.DEFAULT_CLIENT_ID, "You must be in a GameRoom to use a card");
                 }
                 break;
             default:
@@ -296,6 +350,22 @@ public class ServerThread extends BaseServerThread {
 
     protected int getPoints() {
         return this.user.getPoints();
+    }
+
+    protected void addCard(Card card) {
+        this.user.addCard(card);
+    }
+
+    protected Card removeCard(Card card) {
+        return this.user.removeCard(card);
+    }
+
+    protected boolean hasCard(Card card) {
+        return this.user.hasCard(card);
+    }
+
+    protected List<Card> getCards() {
+        return this.user.getCards();
     }
 
     @Override
