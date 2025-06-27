@@ -258,7 +258,6 @@ public class ServerThread extends BaseServerThread {
                 }
                 break;
             case CAST:
-                // no data needed as the intent will be used as the trigger
                 try {
                     // cast to GameRoom as the subclass will handle all Game logic
                     CoordPayoad cp = (CoordPayoad) incoming;
