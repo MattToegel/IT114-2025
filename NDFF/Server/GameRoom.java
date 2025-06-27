@@ -5,10 +5,14 @@ import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
 
+import NDFF.Common.TextFX;
 import NDFF.Common.Constants;
+import NDFF.Common.CatchData;
+import NDFF.Common.Grid;
 import NDFF.Common.LoggerUtil;
 import NDFF.Common.Phase;
 import NDFF.Common.TimedEvent;
+import NDFF.Common.TextFX.Color;
 import NDFF.Exceptions.MissingCurrentPlayerException;
 import NDFF.Exceptions.NotPlayersTurnException;
 import NDFF.Exceptions.NotReadyException;
@@ -25,6 +29,7 @@ public class GameRoom extends BaseGameRoom {
     private List<ServerThread> turnOrder = new ArrayList<>();
     private long currentTurnClientId = Constants.DEFAULT_CLIENT_ID;
     private int round = 0;
+    private Grid grid = new Grid(); // generated in onSessionStart()
 
     public GameRoom(String name) {
         super(name);
@@ -93,6 +98,9 @@ public class GameRoom extends BaseGameRoom {
         currentTurnClientId = Constants.DEFAULT_CLIENT_ID;
         setTurnOrder();
         round = 0;
+        // keep dimensions in sync with Client's Grid
+        grid.generate(5, 5, true);
+        LoggerUtil.INSTANCE.info(TextFX.colorize("Grid generated: " + grid, Color.PURPLE));
         LoggerUtil.INSTANCE.info("onSessionStart() end");
         onRoundStart();
     }
@@ -159,7 +167,7 @@ public class GameRoom extends BaseGameRoom {
         resetRoundTimer(); // reset timer if round ended without the time expiring
 
         LoggerUtil.INSTANCE.info("onRoundEnd() end");
-        if (round >= 3) {
+        if (round >= 10) {
             onSessionEnd();
         } else {
             onRoundStart();
@@ -172,14 +180,43 @@ public class GameRoom extends BaseGameRoom {
         LoggerUtil.INSTANCE.info("onSessionEnd() start");
         turnOrder.clear();
         currentTurnClientId = Constants.DEFAULT_CLIENT_ID;
-        resetReadyStatus();
-        resetTurnStatus();
+        // find winner with highest getPoints();
+        ServerThread winner = turnOrder.stream()
+                .max((sp1, sp2) -> Integer.compare(sp1.getPoints(), sp2.getPoints()))
+                .orElse(null);
+        if (winner != null && winner.getPoints() > 0) {
+            relay(null, String.format("Session ended! %s wins with %d points!",
+                    winner.getDisplayName(), winner.getPoints()));
+        } else {
+            relay(null, "Session ended! No winner could be determined.");
+        }
+        grid.reset();
+        // resetReadyStatus();
+        // resetTurnStatus();
+        /*
+         * Will leverage phase change to READY to tell clients to reset all session
+         * data.
+         * More efficient than having a ton of different reset methods for ultimately
+         * the same goal.
+         * Some reset methods may still be needed, but this will cover most of the
+         * session reset logic.
+         */
         changePhase(Phase.READY);
         LoggerUtil.INSTANCE.info("onSessionEnd() end");
     }
     // end lifecycle methods
 
     // send/sync data to ServerUser(s)
+
+    private void sendCaughtFishUpdate(ServerThread client, int x, int y, CatchData caughtFish) {
+        clientsInRoom.values().forEach(spInRoom -> {
+            boolean failedToSend = !spInRoom.sendCaughtFishUpdate(client.getClientId(), x, y, caughtFish);
+            if (failedToSend) {
+                removeClient(spInRoom);
+            }
+        });
+    }
+
     private void sendResetTurnStatus() {
         clientsInRoom.values().forEach(spInRoom -> {
             boolean failedToSend = !spInRoom.sendResetTurnStatus();
@@ -307,9 +344,74 @@ public class GameRoom extends BaseGameRoom {
         }
     }
 
+    private void checkTookTurn(ServerThread currentUser) throws NotPlayersTurnException {
+        if (currentUser.didTakeTurn()) {
+            throw new NotPlayersTurnException("You have already taken your turn this round");
+        }
+    }
+
+    private void checkCoordinateBounds(int x, int y) {
+        if (grid == null || !grid.isValidCoordinate(x, y)) {
+            throw new IllegalArgumentException(String.format("Coordinates (%d, %d) are out of bounds", x, y));
+        }
+    }
     // end check methods
 
     // receive data from ServerThread (GameRoom specific)
+
+    protected void handleCastAction(ServerThread currentUser, int x, int y) {
+        // this action should be done last in the turn
+        try {
+            checkPlayerInRoom(currentUser);
+            checkCurrentPhase(currentUser, Phase.IN_PROGRESS);
+            checkCurrentPlayer(currentUser.getClientId());
+            checkIsReady(currentUser);
+            checkTookTurn(currentUser);
+            checkCoordinateBounds(x, y);
+            // server-side turn control
+            currentUser.setTookTurn(true);
+
+            CatchData fishCaught = grid.tryCatchFish(x, y);
+            if (fishCaught == null || fishCaught.getQuantity() <= 0) {
+                if (!grid.hasFish(x, y)) {
+                    // used to mark cell as empty
+                    sendCaughtFishUpdate(currentUser, x, y, new CatchData(null, 0));
+                }
+                relay(null, TextFX.colorize(String.format("%s tried to catch fish at (%d, %d) but caught nothing",
+                        currentUser.getDisplayName(), x, y), Color.RED));
+            } else {
+                relay(null, TextFX.colorize(String.format("%s caught %s at (%d, %d)", currentUser.getDisplayName(),
+                        fishCaught, x, y), Color.GREEN));
+                // update server state
+                currentUser.addFish(fishCaught.getFishType(), fishCaught.getQuantity());
+                // sync to clients
+                sendCaughtFishUpdate(currentUser, x, y, fishCaught);
+            }
+            LoggerUtil.INSTANCE.info(TextFX.colorize("Current Grid: " + grid, Color.PURPLE));
+            // sync turn status (could eventually be redundant depending on project logic)
+            sendTurnStatus(currentUser, currentUser.didTakeTurn());
+            // trigger end of turn
+            onTurnEnd();
+        } catch (IllegalArgumentException e) {
+            currentUser.sendMessage(Constants.DEFAULT_CLIENT_ID, "Invalid coordinates for fishing action");
+            LoggerUtil.INSTANCE.severe("handleFishAction exception", e);
+        } catch (NotPlayersTurnException e) {
+            currentUser.sendMessage(Constants.DEFAULT_CLIENT_ID, "It's not your turn");
+            LoggerUtil.INSTANCE.severe("handleFishAction exception", e);
+        } catch (NotReadyException e) {
+            // The check method already informs the currentUser
+            LoggerUtil.INSTANCE.severe("handleFishAction exception", e);
+        } catch (PlayerNotFoundException e) {
+            currentUser.sendMessage(Constants.DEFAULT_CLIENT_ID, "You must be in a GameRoom to do the fishing action");
+            LoggerUtil.INSTANCE.severe("handleFishAction exception", e);
+        } catch (PhaseMismatchException e) {
+            currentUser.sendMessage(Constants.DEFAULT_CLIENT_ID,
+                    "You can only fish during the IN_PROGRESS phase");
+            LoggerUtil.INSTANCE.severe("handleFishAction exception", e);
+        } catch (Exception e) {
+            LoggerUtil.INSTANCE.severe("handleFishAction exception", e);
+        }
+    }
 
     /**
      * Handles the turn action from the client.

@@ -2,6 +2,8 @@ package NDFF.Common;
 
 import java.io.Serializable;
 
+import NDFF.Common.Payloads.PayloadType;
+
 public class Payload implements Serializable {
     private PayloadType payloadType;
     private long clientId;

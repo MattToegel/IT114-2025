@@ -12,18 +12,22 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import NDFF.Common.Cell;
 import NDFF.Common.Command;
-import NDFF.Common.ConnectionPayload;
 import NDFF.Common.Constants;
+import NDFF.Common.Grid;
 import NDFF.Common.LoggerUtil;
 import NDFF.Common.Payload;
-import NDFF.Common.PayloadType;
 import NDFF.Common.Phase;
-import NDFF.Common.ReadyPayload;
 import NDFF.Common.RoomAction;
-import NDFF.Common.RoomResultPayload;
 import NDFF.Common.TextFX;
 import NDFF.Common.User;
+import NDFF.Common.Payloads.ConnectionPayload;
+import NDFF.Common.Payloads.CoordPayoad;
+import NDFF.Common.Payloads.FishPayload;
+import NDFF.Common.Payloads.PayloadType;
+import NDFF.Common.Payloads.ReadyPayload;
+import NDFF.Common.Payloads.RoomResultPayload;
 import NDFF.Common.TextFX.Color;
 
 /**
@@ -52,6 +56,7 @@ public enum Client {
     private final ConcurrentHashMap<Long, User> knownClients = new ConcurrentHashMap<Long, User>();
     private User myUser = new User();
     private Phase currentPhase = Phase.READY;
+    private Grid grid = new Grid();
 
     private void error(String message) {
         LoggerUtil.INSTANCE.severe(TextFX.colorize(String.format("%s", message), Color.RED));
@@ -163,11 +168,12 @@ public enum Client {
                 String message = TextFX.colorize("Known clients:\n", Color.CYAN);
                 LoggerUtil.INSTANCE.info(TextFX.colorize("Known clients:", Color.CYAN));
                 message += String.join("\n", knownClients.values().stream()
-                        .map(c -> String.format("%s %s %s", c.getDisplayName(),
+                        .map(c -> String.format("%s %s %s %s %s",
+                                c.getDisplayName(),
                                 c.getClientId() == myUser.getClientId() ? " (you)" : "",
                                 c.isReady() ? "[x]" : "[ ]",
-                                c.didTakeTurn() ? "[T]"
-                                        : "[ ]"))
+                                c.didTakeTurn() ? "[T]" : "[ ]",
+                                c.getPoints()))
                         .toList());
                 LoggerUtil.INSTANCE.info(message);
                 wasCommand = true;
@@ -217,12 +223,50 @@ public enum Client {
 
                 sendDoTurn(text);
                 wasCommand = true;
+            } else if (text.startsWith(Command.CAST.command)) {
+                // Note: This is just an example command, you can replace it with your own logic
+                text = text.replace(Command.CAST.command, "").trim();
+                if (text == null || text.length() == 0) {
+                    LoggerUtil.INSTANCE
+                            .warning(TextFX.colorize("This command requires a cast message as an argument", Color.RED));
+                    return true;
+                }
+                String[] coords = text.split(",");
+                if (coords.length != 2) {
+                    LoggerUtil.INSTANCE.warning(TextFX.colorize("Usage: /cast <x>,<y>", Color.RED));
+                    return true;
+                }
+                try {
+                    int x = Integer.parseInt(coords[0].trim());
+                    int y = Integer.parseInt(coords[1].trim());
+                    // check if coordinates are within bounds
+                    if (grid.isValidCoordinate(x, y)) {
+                        LoggerUtil.INSTANCE
+                                .info(TextFX.colorize(String.format("Casting at (%d, %d)", x, y), Color.GREEN));
+                        sendCast(x, y);
+                    } else {
+                        LoggerUtil.INSTANCE.warning(TextFX.colorize("Coordinates out of bounds", Color.RED));
+                    }
+                } catch (NumberFormatException e) {
+                    LoggerUtil.INSTANCE
+                            .warning(TextFX.colorize("Coordinates must be integers. Usage: /cast <x>,<y>", Color.RED));
+                    return true;
+                }
+                wasCommand = true;
+            } else {
+                LoggerUtil.INSTANCE.warning(TextFX.colorize("Unknown command: " + text, Color.RED));
             }
         }
         return wasCommand;
     }
 
     // Start Send*() methods
+    private void sendCast(int x, int y) throws IOException {
+        CoordPayoad cp = new CoordPayoad(x, y);
+        cp.setPayloadType(PayloadType.CAST);
+        sendToServer(cp);
+    }
+
     private void sendDoTurn(String text) throws IOException {
         // NOTE for now using ReadyPayload as it has the necessary properties
         // An actual turn may include other data for your project
@@ -377,6 +421,7 @@ public enum Client {
     }
 
     private void processPayload(Payload payload) {
+        LoggerUtil.INSTANCE.info(TextFX.colorize(String.format("Received payload: %s", payload), Color.CYAN));
         switch (payload.getPayloadType()) {
             case CLIENT_CONNECT:// unused
                 break;
@@ -427,6 +472,9 @@ public enum Client {
                 // note no data necessary as this is just a trigger
                 processResetTurn();
                 break;
+            case PayloadType.FISH:
+                processFishResult(payload);
+                break;
             default:
                 LoggerUtil.INSTANCE.warning(TextFX.colorize("Unhandled payload type", Color.YELLOW));
                 break;
@@ -435,6 +483,44 @@ public enum Client {
     }
 
     // Start process*() methods
+    private void processFishResult(Payload payload) {
+        if (!(payload instanceof FishPayload)) {
+            error("Invalid payload subclass for processFishResult");
+            return;
+        }
+        FishPayload fp = (FishPayload) payload;
+        // use -1 clientId for reset
+        if (fp.getClientId() == Constants.DEFAULT_CLIENT_ID) {
+            // reset all fish counts
+            knownClients.values().forEach(cp -> cp.resetFish());
+            System.out.println("Fish counts reset for everyone");
+            return;
+        }
+        // handle normal fish result
+        if (!knownClients.containsKey(fp.getClientId())) {
+            LoggerUtil.INSTANCE.severe(String.format("Received fish result for client id %s who is not known",
+                    fp.getClientId()));
+            return;
+        }
+        User cp = knownClients.get(fp.getClientId());
+        cp.addFish(fp.getFishQuantity().getFishType(), fp.getFishQuantity().getQuantity());
+        // update grid and display
+        // NOTE: Client-side shows known catches in the grid vs server-side that shows
+        // remaining fish
+        Cell cell = grid.getCell(fp.getX(), fp.getY());
+        if (cell == null) {
+            LoggerUtil.INSTANCE
+                    .warning(String.format("Cell at (%d, %d) is null, cannot set fish count", fp.getX(), fp.getY()));
+            return;
+        }
+        if (fp.getFishQuantity() == null) {
+            cell.clearFish();
+        } else {
+            cell.changeFishCount(fp.getFishQuantity().getFishType(), fp.getFishQuantity().getQuantity());
+        }
+        LoggerUtil.INSTANCE.info(TextFX.colorize(String.format("Current grid: " + grid), Color.PURPLE));
+    }
+
     private void processResetTurn() {
         knownClients.values().forEach(cp -> cp.setTookTurn(false));
         System.out.println("Ready status turn for everyone");
@@ -463,8 +549,19 @@ public enum Client {
     }
 
     private void processPhase(Payload payload) {
+
         currentPhase = Enum.valueOf(Phase.class, payload.getMessage());
         System.out.println(TextFX.colorize("Current phase is " + currentPhase.name(), Color.YELLOW));
+        if (currentPhase == Phase.READY) {
+            // treat this as a session reset
+            knownClients.values().forEach(user -> {
+                user.resetSession();
+            });
+            grid.reset();
+        } else if (currentPhase == Phase.IN_PROGRESS) {
+            // switched from ready to in-progress, init local grid
+            grid.generate(5, 5, false);
+        }
     }
 
     private void processResetReady() {

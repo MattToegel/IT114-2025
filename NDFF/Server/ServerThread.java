@@ -5,16 +5,20 @@ import java.util.List;
 import java.util.Objects;
 import java.util.function.Consumer;
 
-import NDFF.Common.ConnectionPayload;
 import NDFF.Common.Constants;
+import NDFF.Common.CatchData;
+import NDFF.Common.FishType;
 import NDFF.Common.LoggerUtil;
 import NDFF.Common.Payload;
-import NDFF.Common.PayloadType;
 import NDFF.Common.Phase;
-import NDFF.Common.ReadyPayload;
 import NDFF.Common.RoomAction;
-import NDFF.Common.RoomResultPayload;
 import NDFF.Common.TextFX;
+import NDFF.Common.Payloads.ConnectionPayload;
+import NDFF.Common.Payloads.CoordPayoad;
+import NDFF.Common.Payloads.FishPayload;
+import NDFF.Common.Payloads.PayloadType;
+import NDFF.Common.Payloads.ReadyPayload;
+import NDFF.Common.Payloads.RoomResultPayload;
 import NDFF.Common.TextFX.Color;
 
 /**
@@ -55,6 +59,13 @@ public class ServerThread extends BaseServerThread {
     }
 
     // Start Send*() Methods
+
+    public boolean sendCaughtFishUpdate(long clientId, int x, int y, CatchData caughtFish) {
+        FishPayload fp = new FishPayload(x, y, caughtFish);
+        fp.setClientId(clientId);
+        return sendToClient(fp);
+    }
+
     public boolean sendResetTurnStatus() {
         ReadyPayload rp = new ReadyPayload();
         rp.setPayloadType(PayloadType.RESET_TURN);
@@ -246,6 +257,16 @@ public class ServerThread extends BaseServerThread {
                     sendMessage(Constants.DEFAULT_CLIENT_ID, "You must be in a GameRoom to do a turn");
                 }
                 break;
+            case CAST:
+                // no data needed as the intent will be used as the trigger
+                try {
+                    // cast to GameRoom as the subclass will handle all Game logic
+                    CoordPayoad cp = (CoordPayoad) incoming;
+                    ((GameRoom) currentRoom).handleCastAction(this, cp.getX(), cp.getY());
+                } catch (Exception e) {
+                    sendMessage(Constants.DEFAULT_CLIENT_ID, "You must be in a GameRoom to do a cast");
+                }
+                break;
             default:
                 LoggerUtil.INSTANCE.warning(TextFX.colorize("Unknown payload type received", Color.RED));
                 break;
@@ -267,6 +288,14 @@ public class ServerThread extends BaseServerThread {
 
     protected void setTookTurn(boolean tookTurn) {
         this.user.setTookTurn(tookTurn);
+    }
+
+    protected void addFish(FishType fishType, int quantity) {
+        this.user.addFish(fishType, quantity);
+    }
+
+    protected int getPoints() {
+        return this.user.getPoints();
     }
 
     @Override

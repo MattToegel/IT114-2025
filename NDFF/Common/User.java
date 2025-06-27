@@ -1,10 +1,31 @@
 package NDFF.Common;
 
+import java.util.concurrent.ConcurrentHashMap;
+
 public class User {
     private long clientId = Constants.DEFAULT_CLIENT_ID;
     private String clientName;
     private boolean isReady = false;
     private boolean tookTurn = false;
+    private ConcurrentHashMap<FishType, Integer> fishQuantities = new ConcurrentHashMap<>();
+
+    public int getPoints() {
+        // FishType has a points value
+        return fishQuantities.entrySet().stream()
+                .mapToInt(entry -> entry.getKey().getPointValue() * entry.getValue())
+                .sum();
+    }
+
+    public void addFish(FishType fishType, int quantity) {
+        if (quantity <= 0) {
+            throw new IllegalArgumentException("Quantity must be positive");
+        }
+        fishQuantities.merge(fishType, quantity, Integer::sum);
+    }
+
+    public void resetFish() {
+        fishQuantities.clear();
+    }
 
     /**
      * @return the clientId
@@ -46,11 +67,25 @@ public class User {
         this.isReady = isReady;
     }
 
+    /**
+     * Resets the user state, including clientId, clientName, isReady, tookTurn, and
+     * fish. All state is cleared to default values.
+     */
     public void reset() {
         this.clientId = Constants.DEFAULT_CLIENT_ID;
         this.clientName = null;
         this.isReady = false;
         this.tookTurn = false;
+        this.resetFish();
+    }
+
+    /**
+     * Resets the session state for the user.
+     */
+    public void resetSession() {
+        this.isReady = false;
+        this.tookTurn = false;
+        this.resetFish();
     }
 
     /**

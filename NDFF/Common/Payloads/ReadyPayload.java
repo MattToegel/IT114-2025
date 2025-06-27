@@ -1,4 +1,6 @@
-package NDFF.Common;
+package NDFF.Common.Payloads;
+
+import NDFF.Common.Payload;
 
 public class ReadyPayload extends Payload {
     private boolean isReady;

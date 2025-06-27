@@ -1,4 +1,4 @@
-package NDFF.Common;
+package NDFF.Common.Payloads;
 
 public enum PayloadType {
        CLIENT_CONNECT, // client requesting to connect to server (passing of initialization data
@@ -23,5 +23,8 @@ public enum PayloadType {
        TURN, // example of taking a turn and syncing a turn action
        SYNC_TURN, // quiet version of TURN, used to sync existing turn status of clients in a
                   // GameRoom
-       RESET_TURN, // trigger to tell client to reset their local list turn status
+       RESET_TURN, // trigger to tell client to reset their local list turn status,
+       USE, // used to trigger a card action
+       CAST, // used to try to fish a coordinate
+       FISH, // used to sync fishing result
 }
