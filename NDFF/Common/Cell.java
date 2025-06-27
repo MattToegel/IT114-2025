@@ -127,8 +127,9 @@ public class Cell {
 
         // randomly select a CatchData from the fish list
         CatchData potential = fish.get(Cell.random.nextInt(fish.size()));
+        LoggerUtil.INSTANCE.info(String.format("Potential catch: %s in Cell[%d][%d]", potential, row, col));
         int catchQuantity = 1 + Cell.random.nextInt(potential.getQuantity()); // Randomly catch 1 to max quantity
-        if (potential.getQuantity() - catchQuantity == 0) {
+        if (potential.getQuantity() - catchQuantity <= 0) {
             fish.remove(potential); // Remove if no fish left
             LoggerUtil.INSTANCE.info("Removing empty fish data from Cell[" + row + "][" + col + "]");
         } else {
