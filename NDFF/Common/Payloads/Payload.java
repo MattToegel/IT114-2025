@@ -1,8 +1,6 @@
-package NDFF.Common;
+package NDFF.Common.Payloads;
 
 import java.io.Serializable;
-
-import NDFF.Common.Payloads.PayloadType;
 
 public class Payload implements Serializable {
     private PayloadType payloadType;

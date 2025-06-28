@@ -5,8 +5,8 @@ import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.net.Socket;
 
-import NDFF.Common.Payload;
 import NDFF.Common.User;
+import NDFF.Common.Payloads.Payload;
 
 /**
  * Base class the handles the underlying connection between Client and

@@ -1,7 +1,5 @@
 package NDFF.Common.Payloads;
 
-import NDFF.Common.Payload;
-
 public class ConnectionPayload extends Payload {
     private String clientName;
 
