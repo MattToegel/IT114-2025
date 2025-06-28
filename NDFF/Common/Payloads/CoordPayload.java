@@ -1,7 +1,5 @@
 package NDFF.Common.Payloads;
 
-import NDFF.Common.Payload;
-
 public class CoordPayload extends Payload {
     private int x;
     private int y;

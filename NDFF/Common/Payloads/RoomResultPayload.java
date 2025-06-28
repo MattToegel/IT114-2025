@@ -3,8 +3,6 @@ package NDFF.Common.Payloads;
 import java.util.ArrayList;
 import java.util.List;
 
-import NDFF.Common.Payload;
-
 public class RoomResultPayload extends Payload {
     private List<String> rooms = new ArrayList<String>();
 
