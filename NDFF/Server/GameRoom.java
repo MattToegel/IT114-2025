@@ -3,7 +3,6 @@ package NDFF.Server;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.logging.Logger;
 import java.util.stream.Collectors;
 
 import NDFF.Common.TextFX;
@@ -538,6 +537,8 @@ public class GameRoom extends BaseGameRoom {
                     sendCaughtFishUpdate(currentUser, x, y, fishCaught);
                 }
             }
+            currentUser.resetFishingAttempts();
+            currentUser.resetCatchMultiplier();
 
             LoggerUtil.INSTANCE.info(TextFX.colorize("Current Grid: " + grid, Color.PURPLE));
             // sync turn status (could eventually be redundant depending on project logic)

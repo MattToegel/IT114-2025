@@ -53,6 +53,12 @@ public class ServerThread extends BaseServerThread {
             this.fishingAttempts = 0; // prevent negative attempts
         }
     }
+    protected void resetCatchMultiplier() {
+        this.catchMultiplier = 0;
+    }
+    protected void resetFishingAttempts() {
+        this.fishingAttempts = 0;
+    }
 
     /**
      * A wrapper method so we don't need to keep typing out the long/complex sysout
