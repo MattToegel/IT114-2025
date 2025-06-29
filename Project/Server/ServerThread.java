@@ -4,7 +4,7 @@ import java.net.Socket;
 import java.util.List;
 import java.util.Objects;
 import java.util.function.Consumer;
-
+import Project.Common.TextFX.Color;
 import Project.Common.ConnectionPayload;
 import Project.Common.Constants;
 import Project.Common.LoggerUtil;
@@ -13,7 +13,6 @@ import Project.Common.PayloadType;
 import Project.Common.RoomAction;
 import Project.Common.RoomResultPayload;
 import Project.Common.TextFX;
-import Project.Common.TextFX.Color;
 
 /**
  * A server-side representation of a single client
@@ -27,6 +26,7 @@ public class ServerThread extends BaseServerThread {
      * 
      * @param message
      */
+    @Override
     protected void info(String message) {
         LoggerUtil.INSTANCE
                 .info(TextFX.colorize(String.format("Thread[%s]: %s", this.getClientId(), message), Color.CYAN));
@@ -130,13 +130,15 @@ public class ServerThread extends BaseServerThread {
     /**
      * Sends a message to the client
      * 
+     * @param clientId who it's from
      * @param message
      * @return true for successful send
      */
-    protected boolean sendMessage(String message) {
+    protected boolean sendMessage(long clientId, String message) {
         Payload payload = new Payload();
         payload.setPayloadType(PayloadType.MESSAGE);
         payload.setMessage(message);
+        payload.setClientId(clientId);
         return sendToClient(payload);
     }
 
