@@ -73,7 +73,7 @@ public class Room implements AutoCloseable {
         clientsInRoom.values().forEach(serverThread -> {
             if (serverThread.getClientId() != incomingClient.getClientId()) {
                 boolean failedToSync = !incomingClient.sendClientInfo(serverThread.getClientId(),
-                        serverThread.getClientName(), RoomAction.JOIN, true);
+                        serverThread.getClientName(), getName(), RoomAction.JOIN, true);
                 if (failedToSync) {
                     LoggerUtil.INSTANCE.warning(
                             String.format("Removing disconnected %s from list", serverThread.getDisplayName()));
@@ -85,17 +85,24 @@ public class Room implements AutoCloseable {
 
     private void joinStatusRelay(ServerThread client, boolean didJoin) {
         clientsInRoom.values().removeIf(serverThread -> {
-            String formattedMessage = String.format("Room[%s] %s %s the room",
-                    getName(),
+            String formattedMessage = String.format("%s %s the room",
+
                     client.getClientId() == serverThread.getClientId() ? "You"
                             : client.getDisplayName(),
                     didJoin ? "joined" : "left");
-            final long senderId = client == null ? Constants.DEFAULT_CLIENT_ID : client.getClientId();
+            // final long senderId = client == null ? Constants.DEFAULT_CLIENT_ID :
+            // client.getClientId();
             // Share info of the client joining or leaving the room
-            boolean failedToSync = !serverThread.sendClientInfo(client.getClientId(),
-                    client.getClientName(), didJoin ? RoomAction.JOIN : RoomAction.LEAVE);
+            boolean failedToSync = !serverThread.sendClientInfo(
+                    client.getClientId(),
+                    client.getClientName(),
+                    getName(),
+                    didJoin ? RoomAction.JOIN : RoomAction.LEAVE);
             // Send the server generated message to the current client
-            boolean failedToSend = !serverThread.sendMessage(senderId, formattedMessage);
+            // fixed the sender as it was incorrectly showing to be from a user
+            // Example 2: Server-side generated join/leave message (this was from Milestone
+            // 2)
+            boolean failedToSend = !serverThread.sendMessage(Constants.DEFAULT_CLIENT_ID, formattedMessage);
             if (failedToSend || failedToSync) {
                 LoggerUtil.INSTANCE.warning(
                         String.format("Removing disconnected %s from list", serverThread.getDisplayName()));
@@ -129,8 +136,9 @@ public class Room implements AutoCloseable {
         final long senderId = sender == null ? Constants.DEFAULT_CLIENT_ID : sender.getClientId();
         // Note: formattedMessage must be final (or effectively final) since outside
         // scope can't be changed inside a callback function (see removeIf() below)
-        final String formattedMessage = String.format("%s: %s", senderString, message);
-
+        // final String formattedMessage = String.format("%s: %s", senderString,
+        // message);
+        final String formattedMessage = String.format("%s", message);
         // loop over clients and send out the message; remove client if message failed
         // to be sent
         // Note: this uses a lambda expression for each item in the values() collection,
@@ -167,8 +175,11 @@ public class Room implements AutoCloseable {
                 if (serverThread.getClientId() == disconnectingServerThread.getClientId()) {
                     return true;
                 }
-                boolean failedToSend = !serverThread.sendClientInfo(disconnectingServerThread.getClientId(),
-                        disconnectingServerThread.getClientName(), RoomAction.LEAVE);
+                boolean failedToSend = !serverThread.sendClientInfo(
+                        disconnectingServerThread.getClientId(),
+                        disconnectingServerThread.getClientName(),
+                        getName(),
+                        RoomAction.LEAVE);
                 if (failedToSend) {
                     LoggerUtil.INSTANCE.warning(
                             String.format("Removing disconnected %s from list", serverThread.getDisplayName()));

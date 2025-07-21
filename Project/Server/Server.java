@@ -8,8 +8,9 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
 import Project.Common.LoggerUtil;
-import Project.Common.TextFX;
+
 import Project.Common.TextFX.Color;
+import Project.Common.TextFX;
 import Project.Exceptions.DuplicateRoomException;
 import Project.Exceptions.RoomNotFoundException;
 
@@ -83,8 +84,7 @@ public enum Server {
         } catch (DuplicateRoomException e) {
             LoggerUtil.INSTANCE.severe(TextFX.colorize("Lobby already exists (this shouldn't happen)", Color.RED));
         } catch (IOException e) {
-            LoggerUtil.INSTANCE.severe(TextFX.colorize("Error accepting connection", Color.RED));
-            e.printStackTrace();
+            LoggerUtil.INSTANCE.severe(TextFX.colorize("Error accepting connection", Color.RED), e);
         } finally {
             info("Closing server socket");
         }
