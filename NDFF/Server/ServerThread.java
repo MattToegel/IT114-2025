@@ -5,23 +5,26 @@ import java.util.List;
 import java.util.Objects;
 import java.util.function.Consumer;
 
-import NDFF.Common.Constants;
 import NDFF.Common.Card;
 import NDFF.Common.CatchData;
+import NDFF.Common.Constants;
 import NDFF.Common.FishType;
 import NDFF.Common.LoggerUtil;
 import NDFF.Common.Phase;
 import NDFF.Common.RoomAction;
 import NDFF.Common.TextFX;
+import NDFF.Common.TextFX.Color;
+import NDFF.Common.TimerType;
 import NDFF.Common.Payloads.CardsPayload;
 import NDFF.Common.Payloads.ConnectionPayload;
 import NDFF.Common.Payloads.CoordPayload;
 import NDFF.Common.Payloads.FishPayload;
 import NDFF.Common.Payloads.Payload;
 import NDFF.Common.Payloads.PayloadType;
+import NDFF.Common.Payloads.PointsPayload;
 import NDFF.Common.Payloads.ReadyPayload;
 import NDFF.Common.Payloads.RoomResultPayload;
-import NDFF.Common.TextFX.Color;
+import NDFF.Common.Payloads.TimerPayload;
 
 /**
  * A server-side representation of a single client
@@ -53,9 +56,11 @@ public class ServerThread extends BaseServerThread {
             this.fishingAttempts = 0; // prevent negative attempts
         }
     }
+
     protected void resetCatchMultiplier() {
         this.catchMultiplier = 0;
     }
+
     protected void resetFishingAttempts() {
         this.fishingAttempts = 0;
     }
@@ -66,6 +71,7 @@ public class ServerThread extends BaseServerThread {
      * 
      * @param message
      */
+    @Override
     protected void info(String message) {
         LoggerUtil.INSTANCE
                 .info(TextFX.colorize(String.format("Thread[%s]: %s", this.getClientId(), message), Color.CYAN));
@@ -92,6 +98,38 @@ public class ServerThread extends BaseServerThread {
     }
 
     // Start Send*() Methods
+    /**
+     * Syncs a specific client's points
+     * 
+     * @param clientId
+     * @param points
+     * @return
+     */
+    public boolean sendPlayerPoints(long clientId, int points) {
+        PointsPayload rp = new PointsPayload();
+        rp.setPoints(points);
+        rp.setClientId(clientId);
+        return sendToClient(rp);
+    }
+
+    public boolean sendGameEvent(String str) {
+        return sendMessage(Constants.GAME_EVENT_CHANNEL, str);
+    }
+
+    /**
+     * Syncs the current time of a specific TimerType
+     * 
+     * @param timerType
+     * @param time
+     * @return
+     */
+    public boolean sendCurrentTime(TimerType timerType, int time) {
+        TimerPayload tp = new TimerPayload();
+        tp.setTime(time);
+        tp.setTimerType(timerType);
+        return sendToClient(tp);
+    }
+
     public boolean sendModifyHand(Card card, boolean isAdd) {
         CardsPayload cp = new CardsPayload(List.of(card));
         cp.setPayloadType(isAdd ? PayloadType.CARDS_ADD : PayloadType.CARDS_REMOVE);
@@ -187,7 +225,7 @@ public class ServerThread extends BaseServerThread {
     }
 
     protected boolean sendResetUserList() {
-        return sendClientInfo(Constants.DEFAULT_CLIENT_ID, null, RoomAction.JOIN);
+        return sendClientInfo(Constants.DEFAULT_CLIENT_ID, null, null, RoomAction.JOIN);
     }
 
     /**
@@ -198,8 +236,8 @@ public class ServerThread extends BaseServerThread {
      * @param action     RoomAction of Join or Leave
      * @return true for successful send
      */
-    protected boolean sendClientInfo(long clientId, String clientName, RoomAction action) {
-        return sendClientInfo(clientId, clientName, action, false);
+    protected boolean sendClientInfo(long clientId, String clientName, String roomName, RoomAction action) {
+        return sendClientInfo(clientId, clientName, roomName, action, false);
     }
 
     /**
@@ -212,7 +250,8 @@ public class ServerThread extends BaseServerThread {
      *                   sync)
      * @return true for successful send
      */
-    protected boolean sendClientInfo(long clientId, String clientName, RoomAction action, boolean isSync) {
+    protected boolean sendClientInfo(long clientId, String clientName, String roomName, RoomAction action,
+            boolean isSync) {
         ConnectionPayload payload = new ConnectionPayload();
         switch (action) {
             case JOIN:
@@ -229,6 +268,7 @@ public class ServerThread extends BaseServerThread {
         }
         payload.setClientId(clientId);
         payload.setClientName(clientName);
+        payload.setMessage(roomName);
         return sendToClient(payload);
     }
 
@@ -250,6 +290,7 @@ public class ServerThread extends BaseServerThread {
     /**
      * Sends a message to the client
      * 
+     * @param clientId who it's from
      * @param message
      * @return true for successful send
      */
@@ -373,6 +414,16 @@ public class ServerThread extends BaseServerThread {
     protected List<Card> getCards() {
         return this.user.getCards();
     }
+
+    /*
+     * protected void setPoints(int points) {
+     * this.user.setPoints(points);
+     * }
+     * 
+     * protected void changePoints(int points) {
+     * this.user.setPoints(this.user.getPoints() + points);
+     * }
+     */
 
     @Override
     protected void onInitialized() {

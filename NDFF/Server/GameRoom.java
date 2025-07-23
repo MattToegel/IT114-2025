@@ -13,6 +13,7 @@ import NDFF.Common.Grid;
 import NDFF.Common.LoggerUtil;
 import NDFF.Common.Phase;
 import NDFF.Common.TimedEvent;
+import NDFF.Common.TimerType;
 import NDFF.Common.TextFX.Color;
 import NDFF.Exceptions.MissingCurrentPlayerException;
 import NDFF.Exceptions.NotPlayersTurnException;
@@ -41,9 +42,17 @@ public class GameRoom extends BaseGameRoom {
     @Override
     protected void onClientAdded(ServerThread sp) {
         // sync GameRoom state to new client
+
         syncCurrentPhase(sp);
+        // sync only what's necessary for the specific phase
+        // if you blindly sync everything, you'll get visual artifacts/discrepancies
         syncReadyStatus(sp);
-        syncTurnStatus(sp);
+        if (currentPhase != Phase.READY) {
+            syncTurnStatus(sp); // turn/ready use the same visual process so ensure turn status is only called
+                                // outside of ready phase
+            syncPlayerPoints(sp);
+        }
+
     }
 
     /** {@inheritDoc} */
@@ -67,26 +76,33 @@ public class GameRoom extends BaseGameRoom {
     // timer handlers
     private void startRoundTimer() {
         roundTimer = new TimedEvent(30, () -> onRoundEnd());
-        roundTimer.setTickCallback((time) -> System.out.println("Round Time: " + time));
+        roundTimer.setTickCallback((time) -> {
+            System.out.println("Round Time: " + time);
+            sendCurrentTime(TimerType.ROUND, time);
+        });
     }
 
     private void resetRoundTimer() {
         if (roundTimer != null) {
             roundTimer.cancel();
             roundTimer = null;
+            sendCurrentTime(TimerType.ROUND, -1);
         }
     }
 
     private void startTurnTimer() {
-        // updated to 5 minutes
-        turnTimer = new TimedEvent(300, () -> onTurnEnd());
-        turnTimer.setTickCallback((time) -> System.out.println("Turn Time: " + time));
+        turnTimer = new TimedEvent(30, () -> onTurnEnd());
+        turnTimer.setTickCallback((time) -> {
+            System.out.println("Turn Time: " + time);
+            sendCurrentTime(TimerType.TURN, time);
+        });
     }
 
     private void resetTurnTimer() {
         if (turnTimer != null) {
             turnTimer.cancel();
             turnTimer = null;
+            sendCurrentTime(TimerType.TURN, -1);
         }
     }
     // end timer handlers
@@ -137,7 +153,8 @@ public class GameRoom extends BaseGameRoom {
         });
 
         round++;
-        relay(null, String.format("Round %d has started", round));
+        // relay(null, String.format("Round %d has started", round));
+        sendGameEvent(String.format("Round %d has started", round));
         // startRoundTimer(); Round timers aren't needed for turns
         // if you do decide to use it, ensure it's reasonable and based on the number of
         // players
@@ -152,7 +169,8 @@ public class GameRoom extends BaseGameRoom {
         resetTurnTimer();
         try {
             ServerThread currentPlayer = getNextPlayer();
-            relay(null, String.format("It's %s's turn", currentPlayer.getDisplayName()));
+            // relay(null, String.format("It's %s's turn", currentPlayer.getDisplayName()));
+            sendGameEvent(String.format("It's %s's turn", currentPlayer.getDisplayName()));
         } catch (MissingCurrentPlayerException | PlayerNotFoundException e) {
 
             e.printStackTrace();
@@ -203,19 +221,29 @@ public class GameRoom extends BaseGameRoom {
     @Override
     protected void onSessionEnd() {
         LoggerUtil.INSTANCE.info("onSessionEnd() start");
-        turnOrder.clear();
-        currentTurnClientId = Constants.DEFAULT_CLIENT_ID;
+
+        // sort and print out score board
+        StringBuilder scoreBoard = new StringBuilder("Score Board:\n");
+        clientsInRoom.values().stream()
+                .sorted((sp1, sp2) -> Integer.compare(sp2.getPoints(), sp1.getPoints()))
+                .forEach(
+                        sp -> scoreBoard.append(
+                                String.format("<div>%s: %d points</div>", sp.getDisplayName(), sp.getPoints())));
+        LoggerUtil.INSTANCE.info(scoreBoard.toString());
+        sendGameEvent(scoreBoard.toString());
         // find winner with highest getPoints();
         ServerThread winner = turnOrder.stream()
                 .max((sp1, sp2) -> Integer.compare(sp1.getPoints(), sp2.getPoints()))
                 .orElse(null);
         if (winner != null && winner.getPoints() > 0) {
-            relay(null, String.format("Session ended! %s wins with %d points!",
+            sendGameEvent(String.format("Session ended! %s wins with %d points!",
                     winner.getDisplayName(), winner.getPoints()));
         } else {
-            relay(null, "Session ended! No winner could be determined.");
+            sendGameEvent("Session ended! No winner could be determined.");
         }
         grid.reset();
+        turnOrder.clear();
+        currentTurnClientId = Constants.DEFAULT_CLIENT_ID;
         // resetReadyStatus();
         // resetTurnStatus();
         /*
@@ -231,7 +259,33 @@ public class GameRoom extends BaseGameRoom {
     }
     // end lifecycle methods
 
-    // send/sync data to ServerUser(s)
+    // send/sync data to ServerThread(s)
+
+    private void syncPlayerPoints(ServerThread incomingClient) {
+        clientsInRoom.values().forEach(serverUser -> {
+            if (serverUser.getClientId() != incomingClient.getClientId()) {
+                boolean failedToSync = !incomingClient.sendPlayerPoints(serverUser.getClientId(),
+                        serverUser.getPoints());
+                if (failedToSync) {
+                    LoggerUtil.INSTANCE.warning(
+                            String.format("Removing disconnected %s from list",
+                                    serverUser.getDisplayName()));
+                    disconnect(serverUser);
+                }
+            }
+        });
+    }
+
+    private void sendPlayerPoints(ServerThread sp) {
+        clientsInRoom.values().removeIf(spInRoom -> {
+            boolean failedToSend = !spInRoom.sendPlayerPoints(sp.getClientId(),
+                    sp.getPoints());
+            if (failedToSend) {
+                removeClient(spInRoom);
+            }
+            return failedToSend;
+        });
+    }
 
     private void sendCaughtFishUpdate(ServerThread client, int x, int y, CatchData caughtFish) {
         clientsInRoom.values().forEach(spInRoom -> {
@@ -356,7 +410,10 @@ public class GameRoom extends BaseGameRoom {
                 .filter(sp -> sp.isReady() && sp.didTakeTurn())
                 .toList().size();
         if (numReady == numTookTurn) {
-            relay(null,
+            // relay(null,
+            // String.format("All players have taken their turn (%d/%d) ending the round",
+            // numTookTurn, numReady));
+            sendGameEvent(
                     String.format("All players have taken their turn (%d/%d) ending the round", numTookTurn, numReady));
             onRoundEnd();
         }
@@ -396,7 +453,7 @@ public class GameRoom extends BaseGameRoom {
             Card incoming = cards.get(0); // don't trust data from the client, just getting it for the id
             Card card = currentUser.removeCard(incoming); // check if it's in hand
             if (card == null) {
-                currentUser.sendMessage(Constants.DEFAULT_CLIENT_ID, "You don't have this card in your hand");
+                currentUser.sendGameEvent("You don't have this card in your hand");
                 return;
             }
             if (card.requiresCoordinates()) {
@@ -412,17 +469,17 @@ public class GameRoom extends BaseGameRoom {
                      */
                     case LONG_TERM_PROBABILITY:
                         grid.changeLongTermProbability(x, y, card.getValue());
-                        relay(null, TextFX.colorize(
+                        sendGameEvent(TextFX.colorize(
                                 String.format("Permanently change the chance of catching fish at (%d, %d) by %s",
                                         x, y, card.getValue()),
-                                Color.GREEN));
+                                Color.GREEN, true));
                         break;
                     case TEMPORARY_PROBABILITY:
                         grid.changeTempProbability(x, y, card.getValue());
-                        relay(null, TextFX.colorize(
+                        sendGameEvent(TextFX.colorize(
                                 String.format("Temporarily change the chance of catching fish at (%d, %d) by %s",
                                         x, y, card.getValue()),
-                                Color.GREEN));
+                                Color.GREEN, true));
                         break;
                     default:
                         LoggerUtil.INSTANCE.warning(
@@ -439,11 +496,11 @@ public class GameRoom extends BaseGameRoom {
                                 String.format("[User] %s adjusted catch multiplier by %s, result %s",
                                         currentUser.getDisplayName(),
                                         card.getValue(), currentUser.getCatchMultiplier()));
-                        relay(null, TextFX.colorize(
+                        sendGameEvent(TextFX.colorize(
                                 String.format("%s adjusted their catch multiplier by %s, result %s",
                                         currentUser.getDisplayName(), card.getValue(),
                                         currentUser.getCatchMultiplier()),
-                                Color.GREEN));
+                                Color.GREEN, true));
                         break;
                     case FISHING_ATTEMPTS:
                         currentUser.adjustFishingAttempts((int) card.getValue());
@@ -451,11 +508,11 @@ public class GameRoom extends BaseGameRoom {
                                 String.format("[User] %s adjusted fishing attempts by %s, result %s",
                                         currentUser.getDisplayName(), card.getValue(),
                                         currentUser.getFishingAttempts()));
-                        relay(null, TextFX.colorize(
+                        sendGameEvent(TextFX.colorize(
                                 String.format("%s adjusted their fishing attempts by %s, result %s",
                                         currentUser.getDisplayName(), card.getValue(),
                                         currentUser.getFishingAttempts()),
-                                Color.GREEN));
+                                Color.GREEN, true));
                         break;
                     /*
                      * Unused in this section
@@ -477,19 +534,19 @@ public class GameRoom extends BaseGameRoom {
             // don't end turn, using cards is an optional step
 
         } catch (IllegalArgumentException e) {
-            currentUser.sendMessage(Constants.DEFAULT_CLIENT_ID, "Invalid coordinates for card action");
+            currentUser.sendGameEvent("Invalid coordinates for card action");
             LoggerUtil.INSTANCE.severe("handleUseCard exception", e);
         } catch (NotPlayersTurnException e) {
-            currentUser.sendMessage(Constants.DEFAULT_CLIENT_ID, "It's not your turn");
+            currentUser.sendGameEvent("It's not your turn");
             LoggerUtil.INSTANCE.severe("handleUseCard exception", e);
         } catch (NotReadyException e) {
             // The check method already informs the currentUser
             LoggerUtil.INSTANCE.severe("handleUseCard exception", e);
         } catch (PlayerNotFoundException e) {
-            currentUser.sendMessage(Constants.DEFAULT_CLIENT_ID, "You must be in a GameRoom to do the card action");
+            currentUser.sendGameEvent("You must be in a GameRoom to do the card action");
             LoggerUtil.INSTANCE.severe("handleUseCard exception", e);
         } catch (PhaseMismatchException e) {
-            currentUser.sendMessage(Constants.DEFAULT_CLIENT_ID,
+            currentUser.sendGameEvent(
                     "You can only use cards during the IN_PROGRESS phase");
             LoggerUtil.INSTANCE.severe("handleUseCard exception", e);
         } catch (Exception e) {
@@ -512,19 +569,20 @@ public class GameRoom extends BaseGameRoom {
             // rather than letting the user pick new locations)
             int fishingAttempts = currentUser.getFishingAttempts() + 1;
             for (int i = 0; i < fishingAttempts; i++) {
-                relay(null, TextFX.colorize(String.format("%s is casting at (%d, %d) (attempt %d/%d)",
-                        currentUser.getDisplayName(), x, y, i + 1, fishingAttempts), Color.BLUE));
+                sendGameEvent(TextFX.colorize(String.format("%s is casting at (%d, %d) (attempt %d/%d)",
+                        currentUser.getDisplayName(), x, y, i + 1, fishingAttempts), Color.BLUE, true));
                 CatchData fishCaught = grid.tryCatchFish(x, y);
                 if (fishCaught == null || fishCaught.getQuantity() <= 0) {
                     if (!grid.hasFish(x, y)) {
                         // used to mark cell as empty
                         sendCaughtFishUpdate(currentUser, x, y, new CatchData(null, 0));
                     }
-                    relay(null, TextFX.colorize(String.format("%s tried to catch fish at (%d, %d) but caught nothing",
-                            currentUser.getDisplayName(), x, y), Color.RED));
+                    sendGameEvent(TextFX.colorize(String.format("%s tried to catch fish at (%d, %d) but caught nothing",
+                            currentUser.getDisplayName(), x, y), Color.RED, true));
                 } else {
-                    relay(null, TextFX.colorize(String.format("%s caught %s at (%d, %d)", currentUser.getDisplayName(),
-                            fishCaught, x, y), Color.GREEN));
+                    sendGameEvent(
+                            TextFX.colorize(String.format("%s caught %s at (%d, %d)", currentUser.getDisplayName(),
+                                    fishCaught, x, y), Color.GREEN, true));
                     // handle multiplier (applies to each fish attempt)
                     float mod = currentUser.getCatchMultiplier();
                     if (mod != 0) {
@@ -535,6 +593,7 @@ public class GameRoom extends BaseGameRoom {
                     currentUser.addFish(fishCaught.getFishType(), fishCaught.getQuantity());
                     // sync to clients
                     sendCaughtFishUpdate(currentUser, x, y, fishCaught);
+                    sendPlayerPoints(currentUser);
                 }
             }
             currentUser.resetFishingAttempts();
@@ -546,19 +605,19 @@ public class GameRoom extends BaseGameRoom {
             // trigger end of turn
             onTurnEnd();
         } catch (IllegalArgumentException e) {
-            currentUser.sendMessage(Constants.DEFAULT_CLIENT_ID, "Invalid coordinates for fishing action");
+            currentUser.sendGameEvent("Invalid coordinates for fishing action");
             LoggerUtil.INSTANCE.severe("handleFishAction exception", e);
         } catch (NotPlayersTurnException e) {
-            currentUser.sendMessage(Constants.DEFAULT_CLIENT_ID, "It's not your turn");
+            currentUser.sendGameEvent("It's not your turn");
             LoggerUtil.INSTANCE.severe("handleFishAction exception", e);
         } catch (NotReadyException e) {
             // The check method already informs the currentUser
             LoggerUtil.INSTANCE.severe("handleFishAction exception", e);
         } catch (PlayerNotFoundException e) {
-            currentUser.sendMessage(Constants.DEFAULT_CLIENT_ID, "You must be in a GameRoom to do the fishing action");
+            currentUser.sendGameEvent("You must be in a GameRoom to do the fishing action");
             LoggerUtil.INSTANCE.severe("handleFishAction exception", e);
         } catch (PhaseMismatchException e) {
-            currentUser.sendMessage(Constants.DEFAULT_CLIENT_ID,
+            currentUser.sendGameEvent(
                     "You can only fish during the IN_PROGRESS phase");
             LoggerUtil.INSTANCE.severe("handleFishAction exception", e);
         } catch (Exception e) {
@@ -573,7 +632,6 @@ public class GameRoom extends BaseGameRoom {
      * @param exampleText (arbitrary text from the client, can be used for
      *                    additional actions or information)
      */
-    @Deprecated
     protected void handleTurnAction(ServerThread currentUser, String exampleText) {
         // check if the client is in the room
         try {
@@ -582,9 +640,19 @@ public class GameRoom extends BaseGameRoom {
             checkCurrentPlayer(currentUser.getClientId());
             checkIsReady(currentUser);
             if (currentUser.didTakeTurn()) {
-                currentUser.sendMessage(Constants.DEFAULT_CLIENT_ID, "You have already taken your turn this round");
+                currentUser.sendGameEvent("You have already taken your turn this round");
                 return;
             }
+            // example points
+            /*
+             * int points = new Random().nextInt(4) == 3 ? 1 : 0;
+             * sendGameEvent(String.format("%s %s", currentUser.getDisplayName(),
+             * points > 0 ? "gained a point" : "didn't gain a point"));
+             * if (points > 0) {
+             * currentUser.changePoints(points);
+             * sendPlayerPoints(currentUser);
+             * }
+             */
             currentUser.setTookTurn(true);
             // TODO handle example text possibly or other turn related intention from client
 
@@ -592,16 +660,16 @@ public class GameRoom extends BaseGameRoom {
             // finished processing the turn
             onTurnEnd();
         } catch (NotPlayersTurnException e) {
-            currentUser.sendMessage(Constants.DEFAULT_CLIENT_ID, "It's not your turn");
+            currentUser.sendGameEvent("It's not your turn");
             LoggerUtil.INSTANCE.severe("handleTurnAction exception", e);
         } catch (NotReadyException e) {
             // The check method already informs the currentUser
             LoggerUtil.INSTANCE.severe("handleTurnAction exception", e);
         } catch (PlayerNotFoundException e) {
-            currentUser.sendMessage(Constants.DEFAULT_CLIENT_ID, "You must be in a GameRoom to do the ready check");
+            currentUser.sendGameEvent("You must be in a GameRoom to do the ready check");
             LoggerUtil.INSTANCE.severe("handleTurnAction exception", e);
         } catch (PhaseMismatchException e) {
-            currentUser.sendMessage(Constants.DEFAULT_CLIENT_ID,
+            currentUser.sendGameEvent(
                     "You can only take a turn during the IN_PROGRESS phase");
             LoggerUtil.INSTANCE.severe("handleTurnAction exception", e);
         } catch (Exception e) {

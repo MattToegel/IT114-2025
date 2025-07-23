@@ -20,6 +20,24 @@ public class Card implements Serializable {
         this.description = description;
     }
 
+    public String getName() {
+        // convert enum name to a more readable format
+        String name = type.name().replace("_", " ").toLowerCase();
+        // capitalize first letter of each word
+        String[] words = name.split(" ");
+        StringBuilder sb = new StringBuilder();
+        for (String word : words) {
+            if (word.length() > 0) {
+                sb.append(Character.toUpperCase(word.charAt(0)));
+                if (word.length() > 1) {
+                    sb.append(word.substring(1));
+                }
+                sb.append(" ");
+            }
+        }
+        return sb.toString().trim();
+    }
+
     public String getId() {
         return id;
     }

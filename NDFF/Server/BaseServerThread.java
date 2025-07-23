@@ -7,6 +7,7 @@ import java.net.Socket;
 
 import NDFF.Common.User;
 import NDFF.Common.Payloads.Payload;
+import NDFF.Common.Payloads.TimerPayload;
 
 /**
  * Base class the handles the underlying connection between Client and
@@ -113,7 +114,9 @@ public abstract class BaseServerThread extends Thread {
             return true;
         }
         try {
-            info("Sending to client: " + payload);
+            if (!(payload instanceof TimerPayload)) {
+                info("Sending to client: " + payload);
+            }
             out.writeObject(payload);
             out.flush();
             return true;

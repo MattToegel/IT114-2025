@@ -5,6 +5,7 @@ import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.net.Socket;
 import java.net.UnknownHostException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Scanner;
 import java.util.concurrent.CompletableFuture;
@@ -12,25 +13,38 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import NDFF.Client.Interfaces.ICardEvents;
+import NDFF.Client.Interfaces.IClientEvents;
+import NDFF.Client.Interfaces.IConnectionEvents;
+import NDFF.Client.Interfaces.IGridEvents;
+import NDFF.Client.Interfaces.IMessageEvents;
+import NDFF.Client.Interfaces.IPhaseEvent;
+import NDFF.Client.Interfaces.IPointsEvent;
+import NDFF.Client.Interfaces.IReadyEvent;
+import NDFF.Client.Interfaces.IRoomEvents;
+import NDFF.Client.Interfaces.ITimeEvents;
+import NDFF.Client.Interfaces.ITurnEvent;
 import NDFF.Common.Card;
 import NDFF.Common.Cell;
 import NDFF.Common.Command;
-import NDFF.Common.Constants;
-import NDFF.Common.Grid;
-import NDFF.Common.LoggerUtil;
-import NDFF.Common.Phase;
-import NDFF.Common.RoomAction;
-import NDFF.Common.TextFX;
-import NDFF.Common.User;
 import NDFF.Common.Payloads.CardsPayload;
 import NDFF.Common.Payloads.ConnectionPayload;
 import NDFF.Common.Payloads.CoordPayload;
 import NDFF.Common.Payloads.FishPayload;
+import NDFF.Common.Constants;
+import NDFF.Common.Grid;
+import NDFF.Common.LoggerUtil;
 import NDFF.Common.Payloads.Payload;
 import NDFF.Common.Payloads.PayloadType;
+import NDFF.Common.Phase;
+import NDFF.Common.Payloads.PointsPayload;
 import NDFF.Common.Payloads.ReadyPayload;
+import NDFF.Common.RoomAction;
 import NDFF.Common.Payloads.RoomResultPayload;
+import NDFF.Common.TextFX;
+import NDFF.Common.User;
 import NDFF.Common.TextFX.Color;
+import NDFF.Common.Payloads.TimerPayload;
 
 /**
  * Demoing bi-directional communication between client and server in a
@@ -40,7 +54,6 @@ public enum Client {
     INSTANCE;
 
     {
-
         // statically initialize the client-side LoggerUtil
         LoggerUtil.LoggerConfig config = new LoggerUtil.LoggerConfig();
         config.setFileSizeLimit(2048 * 1024); // 2MB
@@ -59,6 +72,9 @@ public enum Client {
     private final ConcurrentHashMap<Long, User> knownClients = new ConcurrentHashMap<Long, User>();
     private User myUser = new User();
     private Phase currentPhase = Phase.READY;
+    // callback that updates the UI
+    private static List<IClientEvents> events = new ArrayList<IClientEvents>();
+    private String currentRoom;
     private Grid grid = new Grid();
 
     private void error(String message) {
@@ -68,6 +84,27 @@ public enum Client {
     // needs to be private now that the enum logic is handling this
     private Client() {
         LoggerUtil.INSTANCE.info("Client Created");
+    }
+
+    public void registerCallback(IClientEvents e) {
+        events.add(e);
+    }
+
+    /**
+     * Used for client-side feedback
+     * 
+     * @param str
+     */
+    public void clientSideGameEvent(String str) {
+        passToUICallback(IMessageEvents.class, e -> e.onMessageReceive(Constants.GAME_EVENT_CHANNEL, str));
+    }
+
+    public boolean isMyClientIdSet() {
+        return myUser != null && myUser.getClientId() != Constants.DEFAULT_CLIENT_ID;
+    }
+
+    public boolean isMyClientId(long clientId) {
+        return isMyClientIdSet() && myUser.getClientId() == clientId;
     }
 
     public boolean isConnected() {
@@ -88,6 +125,7 @@ public enum Client {
      * @param port
      * @return true if connection was successful
      */
+    @Deprecated
     private boolean connect(String address, int port) {
         try {
             server = new Socket(address, port);
@@ -98,6 +136,34 @@ public enum Client {
             LoggerUtil.INSTANCE.info("Client connected");
             // Use CompletableFuture to run listenToServer() in a separate thread
             CompletableFuture.runAsync(this::listenToServer);
+        } catch (UnknownHostException e) {
+            e.printStackTrace();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        return isConnected();
+    }
+
+    /**
+     * Takes an ip address and a port to attempt a socket connection to a server.
+     * 
+     * @param address
+     * @param port
+     * @param username
+     * @return true if connection was successful
+     */
+    public boolean connect(String address, int port, String username) {
+        myUser.setClientName(username);
+        try {
+            server = new Socket(address, port);
+            // channel to send to server
+            out = new ObjectOutputStream(server.getOutputStream());
+            // channel to listen to server
+            in = new ObjectInputStream(server.getInputStream());
+            LoggerUtil.INSTANCE.info("Client connected");
+            // Use CompletableFuture to run listenToServer() in a separate thread
+            CompletableFuture.runAsync(this::listenToServer);
+            sendClientName(myUser.getClientName());// sync follow-up data (handshake)
         } catch (UnknownHostException e) {
             e.printStackTrace();
         } catch (IOException e) {
@@ -340,7 +406,7 @@ public enum Client {
     // end misc
 
     // Start Send*() methods
-    private void sendUseCard(Card card, int x, int y) throws IOException {
+    public void sendUseCard(Card card, int x, int y) throws IOException {
         if (card == null) {
             LoggerUtil.INSTANCE.warning(TextFX.colorize("Card is null, cannot send", Color.RED));
             return;
@@ -350,7 +416,7 @@ public enum Client {
         sendToServer(payload);
     }
 
-    private void sendUseCard(Card card) throws IOException {
+    public void sendUseCard(Card card) throws IOException {
         if (card == null) {
             LoggerUtil.INSTANCE.warning(TextFX.colorize("Card is null, cannot send", Color.RED));
             return;
@@ -360,13 +426,13 @@ public enum Client {
         sendToServer(payload);
     }
 
-    private void sendCast(int x, int y) throws IOException {
+    public void sendCast(int x, int y) throws IOException {
         CoordPayload cp = new CoordPayload(x, y);
         cp.setPayloadType(PayloadType.CAST);
         sendToServer(cp);
     }
 
-    private void sendDoTurn(String text) throws IOException {
+    public void sendDoTurn(String text) throws IOException {
         // NOTE for now using ReadyPayload as it has the necessary properties
         // An actual turn may include other data for your project
         ReadyPayload rp = new ReadyPayload();
@@ -382,9 +448,10 @@ public enum Client {
      * 
      * @throws IOException
      */
-    private void sendReady() throws IOException {
+    public void sendReady() throws IOException {
         ReadyPayload rp = new ReadyPayload();
-        rp.setReady(true); // <- technically not needed as we'll use the payload type as a trigger
+        // rp.setReady(true); // <- technically not needed as we'll use the payload type
+        // as a trigger
         sendToServer(rp);
     }
 
@@ -395,7 +462,7 @@ public enum Client {
      * @param roomAction (join, leave, create)
      * @throws IOException
      */
-    private void sendRoomAction(String roomName, RoomAction roomAction) throws IOException {
+    public void sendRoomAction(String roomName, RoomAction roomAction) throws IOException {
         Payload payload = new Payload();
         payload.setMessage(roomName);
         switch (roomAction) {
@@ -437,7 +504,7 @@ public enum Client {
      * 
      * @throws IOException
      */
-    private void sendDisconnect() throws IOException {
+    public void sendDisconnect() throws IOException {
         Payload payload = new Payload();
         payload.setPayloadType(PayloadType.DISCONNECT);
         sendToServer(payload);
@@ -449,7 +516,11 @@ public enum Client {
      * @param message
      * @throws IOException
      */
-    private void sendMessage(String message) throws IOException {
+    public void sendMessage(String message) throws IOException {
+        // added in Milestone 3 to persist usage of slash commands
+        if (processClientCommand(message)) {
+            return; // if the message was a command, don't send it to the server
+        }
         Payload payload = new Payload();
         payload.setMessage(message);
         payload.setPayloadType(PayloadType.MESSAGE);
@@ -514,7 +585,7 @@ public enum Client {
                 e.printStackTrace();
             }
         } catch (Exception e) {
-            LoggerUtil.INSTANCE.severe("Unexpected error in listenToServer", e);
+            LoggerUtil.INSTANCE.severe("Unexpected error in listenToServer()", e);
         } finally {
             closeServerConnection();
         }
@@ -522,7 +593,9 @@ public enum Client {
     }
 
     private void processPayload(Payload payload) {
-        LoggerUtil.INSTANCE.info(TextFX.colorize(String.format("Received payload: %s", payload), Color.CYAN));
+        if (!(payload instanceof TimerPayload)) {
+            LoggerUtil.INSTANCE.info(TextFX.colorize(String.format("Received payload: %s", payload), Color.CYAN));
+        }
         switch (payload.getPayloadType()) {
             case CLIENT_CONNECT:// unused
                 break;
@@ -585,6 +658,12 @@ public enum Client {
             case PayloadType.CARDS_REMOVE: // remove card from hand
                 processCardsChange(payload, false);
                 break;
+            case PayloadType.TIME:
+                processCurrentTimer(payload);
+                break;
+            case PayloadType.POINTS:
+                processPoints(payload);
+                break;
             default:
                 LoggerUtil.INSTANCE.warning(TextFX.colorize("Unhandled payload type", Color.YELLOW));
                 break;
@@ -592,7 +671,74 @@ public enum Client {
         }
     }
 
+    public String getDisplayNameFromId(long id) {
+        LoggerUtil.INSTANCE.info(String.format("Getting display name for client id %s", id));
+        if (id == Constants.DEFAULT_CLIENT_ID) {
+            return String.format("Room[%s]", currentRoom);
+        }
+        if (knownClients.containsKey(id)) {
+            return knownClients.get(id).getDisplayName();
+        }
+        // fallback for room changing when knownClients is cleared
+        if (isMyClientId(id)) {
+            return myUser.getDisplayName();
+        }
+        return "[Unknown]";
+    }
+
+    /**
+     * Passes the event to the callback consumer if it matches the type.
+     * This is a generic method that allows for type-safe handling of events.
+     * 
+     * @param <T>
+     * @param type
+     * @param consumer
+     */
+    private <T> void passToUICallback(Class<T> type, java.util.function.Consumer<T> consumer) {
+        try {
+            for (IClientEvents event : events) {
+                if (type.isInstance(event)) {
+                    consumer.accept(type.cast(event));
+                }
+            }
+        } catch (Exception e) {
+            LoggerUtil.INSTANCE.severe("Error passing to callback", e);
+            // e.printStackTrace();
+        }
+    }
+
     // Start process*() methods
+    private void processPoints(Payload payload) {
+        if (!(payload instanceof PointsPayload)) {
+            error("Invalid payload subclass for processCardAdd");
+            return;
+        }
+        PointsPayload pp = (PointsPayload) payload;
+        long targetId = pp.getClientId();
+        int points = pp.getPoints();
+        if (targetId == Constants.DEFAULT_CLIENT_ID) {
+            // reset all
+            // knownClients.values().forEach(cp -> cp.setPoints(-1));
+
+            passToUICallback(IPointsEvent.class, e -> e.onPointsUpdate(Constants.DEFAULT_CLIENT_ID, -1));
+        } else if (knownClients.containsKey(targetId)) {
+            // knownClients.get(targetId).setPoints(points);
+
+            passToUICallback(IPointsEvent.class, e -> e.onPointsUpdate(targetId, points));
+
+        }
+    }
+
+    private void processCurrentTimer(Payload payload) {
+        if (!(payload instanceof TimerPayload)) {
+            error("Invalid payload subclass for processCurrentTimer");
+            return;
+        }
+        TimerPayload timerPayload = (TimerPayload) payload;
+
+        passToUICallback(ITimeEvents.class, e -> e.onTimerUpdate(timerPayload.getTimerType(), timerPayload.getTime()));
+    }
+
     private void processCardsChange(Payload payload, boolean isAdd) {
         if (!(payload instanceof CardsPayload)) {
             error("Invalid payload subclass for processCardsChange");
@@ -631,9 +777,11 @@ public enum Client {
             if (isAdd) {
                 myUser.addCard(card);
                 LoggerUtil.INSTANCE.info(String.format("Added card %s to your hand", card));
+                passToUICallback(ICardEvents.class, e -> e.onCardAdded(card));
             } else {
                 myUser.removeCard(card);
                 LoggerUtil.INSTANCE.info(String.format("Removed card %s from your hand", card));
+                passToUICallback(ICardEvents.class, e -> e.onCardRemoved(card));
             }
         }
     }
@@ -662,6 +810,7 @@ public enum Client {
          * cpUser.syncCards(cp.getCards());
          */
         myUser.syncCards(cp.getCards());
+        passToUICallback(ICardEvents.class, e -> e.onCardsSync(myUser.getCards()));
         showHand();
     }
 
@@ -701,8 +850,10 @@ public enum Client {
         }
         if (fp.getFishQuantity() == null || fp.getFishQuantity().getFishType() == null) {
             cell.clearFish();
+            passToUICallback(IGridEvents.class, e -> e.onReceiveCellUpdate(fp.getX(), fp.getY(), -1));
         } else {
             cell.changeFishCount(fp.getFishQuantity().getFishType(), fp.getFishQuantity().getQuantity());
+            passToUICallback(IGridEvents.class, e -> e.onReceiveCellUpdate(fp.getX(), fp.getY(), cell.getTotalFish()));
         }
         LoggerUtil.INSTANCE.info(TextFX.colorize(String.format("Current grid: " + grid), Color.PURPLE));
     }
@@ -710,6 +861,8 @@ public enum Client {
     private void processResetTurn() {
         knownClients.values().forEach(cp -> cp.setTookTurn(false));
         System.out.println("Ready status turn for everyone");
+
+        passToUICallback(ITurnEvent.class, e -> e.onTookTurn(Constants.DEFAULT_CLIENT_ID, false));
     }
 
     private void processTurn(Payload payload) {
@@ -730,29 +883,52 @@ public enum Client {
             String message = String.format("%s %s their turn", cp.getDisplayName(),
                     cp.didTakeTurn() ? "took" : "reset");
             LoggerUtil.INSTANCE.info(message);
+            // reusable method for client-side feedback
+            clientSideGameEvent(String.format("%s finished their turn",
+                    cp.getDisplayName()));
+            // original
+            /*
+             * passToUICallback(IMessageEvents.class,
+             * e -> e.onMessageReceive(Constants.GAME_EVENT_CHANNEL,
+             * String.format("%s finished their turn",
+             * cp.getDisplayName())));
+             */
         }
+
+        passToUICallback(ITurnEvent.class, e -> e.onTookTurn(cp.getClientId(), cp.didTakeTurn()));
 
     }
 
     private void processPhase(Payload payload) {
-
         currentPhase = Enum.valueOf(Phase.class, payload.getMessage());
         System.out.println(TextFX.colorize("Current phase is " + currentPhase.name(), Color.YELLOW));
+
+        passToUICallback(IPhaseEvent.class, e -> e.onReceivePhase(currentPhase));
         if (currentPhase == Phase.READY) {
             // treat this as a session reset
             knownClients.values().forEach(user -> {
                 user.resetSession();
             });
             grid.reset();
+            passToUICallback(IGridEvents.class, e -> e.onReceiveGridSize(-1, -1));
         } else if (currentPhase == Phase.IN_PROGRESS) {
             // switched from ready to in-progress, init local grid
             grid.generate(5, 5, false);
+            passToUICallback(IGridEvents.class, e -> e.onReceiveGridSize(grid.getWidth(), grid.getHeight()));
         }
     }
 
     private void processResetReady() {
-        knownClients.values().forEach(cp -> cp.setReady(false));
+        knownClients.values().forEach(cp -> {
+            cp.setReady(false);
+            cp.setTookTurn(false);
+            cp.resetSession();
+        });
         System.out.println("Ready status reset for everyone");
+
+        passToUICallback(IReadyEvent.class, e -> e.onReceiveReady(Constants.DEFAULT_CLIENT_ID, false, true));
+        passToUICallback(ITurnEvent.class, e -> e.onTookTurn(Constants.DEFAULT_CLIENT_ID, false));
+        passToUICallback(IPointsEvent.class, e -> e.onPointsUpdate(Constants.DEFAULT_CLIENT_ID, -1));
     }
 
     private void processReadyStatus(Payload payload, boolean isQuiet) {
@@ -773,6 +949,8 @@ public enum Client {
                     String.format("%s is %s", cp.getDisplayName(),
                             rp.isReady() ? "ready" : "not ready"));
         }
+
+        passToUICallback(IReadyEvent.class, e -> e.onReceiveReady(cp.getClientId(), cp.isReady(), isQuiet));
     }
 
     private void processRoomsList(Payload payload) {
@@ -782,6 +960,9 @@ public enum Client {
         }
         RoomResultPayload rrp = (RoomResultPayload) payload;
         List<String> rooms = rrp.getRooms();
+        // send to UI before steps below
+        passToUICallback(IRoomEvents.class, e -> e.onReceiveRoomList(rooms, rrp.getMessage()));
+
         if (rooms == null || rooms.size() == 0) {
             LoggerUtil.INSTANCE.warning(
                     TextFX.colorize("No rooms found matching your query",
@@ -790,7 +971,7 @@ public enum Client {
         }
         LoggerUtil.INSTANCE.info(TextFX.colorize("Room Results:", Color.PURPLE));
         LoggerUtil.INSTANCE.info(
-                String.join("\n", rooms));
+                String.join(System.lineSeparator(), rooms));
     }
 
     private void processClientData(Payload payload) {
@@ -802,10 +983,13 @@ public enum Client {
         myUser.setClientName(((ConnectionPayload) payload).getClientName());// confirmation from Server
         knownClients.put(myUser.getClientId(), myUser);
         LoggerUtil.INSTANCE.info(TextFX.colorize("Connected", Color.GREEN));
+
+        passToUICallback(IConnectionEvents.class, e -> e.onReceiveClientId(myUser.getClientId()));
     }
 
     private void processDisconnect(Payload payload) {
-        if (payload.getClientId() == myUser.getClientId()) {
+        passToUICallback(IConnectionEvents.class, e -> e.onClientDisconnect(payload.getClientId()));
+        if (isMyClientId(payload.getClientId())) {
             knownClients.clear();
             myUser.reset();
             LoggerUtil.INSTANCE.info(TextFX.colorize("You disconnected", Color.RED));
@@ -830,6 +1014,12 @@ public enum Client {
         // transitions)
         if (connectionPayload.getClientId() == Constants.DEFAULT_CLIENT_ID) {
             knownClients.clear();
+
+            passToUICallback(IRoomEvents.class, e -> e.onRoomAction(
+                    Constants.DEFAULT_CLIENT_ID,
+                    connectionPayload.getMessage(),
+                    false,
+                    true));
             return;
         }
         switch (connectionPayload.getPayloadType()) {
@@ -837,6 +1027,11 @@ public enum Client {
             case ROOM_LEAVE:
                 // remove from map
                 if (knownClients.containsKey(connectionPayload.getClientId())) {
+                    passToUICallback(IRoomEvents.class, e -> e.onRoomAction(
+                            connectionPayload.getClientId(),
+                            connectionPayload.getMessage(),
+                            false,
+                            false));
                     knownClients.remove(connectionPayload.getClientId());
                 }
                 if (connectionPayload.getMessage() != null) {
@@ -845,8 +1040,10 @@ public enum Client {
 
                 break;
             case ROOM_JOIN:
-                if (connectionPayload.getMessage() != null) {
-                    LoggerUtil.INSTANCE.info(TextFX.colorize(connectionPayload.getMessage(), Color.GREEN));
+                if (connectionPayload.getMessage() != null && isMyClientId(connectionPayload.getClientId())) {
+                    currentRoom = connectionPayload.getMessage();
+                    LoggerUtil.INSTANCE.info(TextFX.colorize(String.format("Joined %s", currentRoom), Color.GREEN));
+
                 }
                 // cascade to manage knownClients
             case SYNC_CLIENT:
@@ -857,6 +1054,11 @@ public enum Client {
                     user.setClientName(connectionPayload.getClientName());
                     knownClients.put(connectionPayload.getClientId(), user);
                 }
+                passToUICallback(IRoomEvents.class, e -> e.onRoomAction(
+                        connectionPayload.getClientId(),
+                        connectionPayload.getMessage(),
+                        true,
+                        connectionPayload.getPayloadType() == PayloadType.SYNC_CLIENT));
                 break;
             default:
                 error("Invalid payload type for processRoomAction");
@@ -866,16 +1068,23 @@ public enum Client {
 
     private void processMessage(Payload payload) {
         LoggerUtil.INSTANCE.info(TextFX.colorize(payload.getMessage(), Color.BLUE));
+
+        passToUICallback(IMessageEvents.class, e -> e.onMessageReceive(payload.getClientId(),
+                payload.getMessage()));
     }
 
     private void processReverse(Payload payload) {
         LoggerUtil.INSTANCE.info(TextFX.colorize(payload.getMessage(), Color.PURPLE));
+
+        passToUICallback(IMessageEvents.class, e -> e.onMessageReceive(payload.getClientId(),
+                payload.getMessage()));
     }
     // End process*() methods
 
     /**
      * Listens for keyboard input from the user
      */
+    @Deprecated
     private void listenToInput() {
         try (Scanner si = new Scanner(System.in)) {
             LoggerUtil.INSTANCE.info("Waiting for input"); // moved here to avoid console spam
@@ -934,6 +1143,7 @@ public enum Client {
         }
     }
 
+    @Deprecated
     public static void main(String[] args) {
         Client client = Client.INSTANCE;
         try {

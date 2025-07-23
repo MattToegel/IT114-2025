@@ -30,4 +30,6 @@ public enum PayloadType {
        CARDS, // used to sync card changes
        CARDS_ADD, // used to sync card additions
        CARDS_REMOVE, // used to sync card removals
+       TIME, // syncs current time of various timers
+       POINTS, // syncs points data
 }
