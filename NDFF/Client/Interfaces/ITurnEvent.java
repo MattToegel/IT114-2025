@@ -7,4 +7,6 @@ public interface ITurnEvent extends IGameEvents {
      * @param phase
      */
     void onTookTurn(long clientId, boolean didtakeCurn);
+
+    void onAwayStatusUpdate(long clientId, boolean isAway);
 }

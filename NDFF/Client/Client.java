@@ -384,6 +384,10 @@ public enum Client {
             } else if (text.equalsIgnoreCase(Command.HAND.command)) {
                 showHand();
                 wasCommand = true;
+            } else if (text.equalsIgnoreCase(Command.AWAY.command)) {
+                // toggle away status
+                sendAwayAction(); // send to server
+                wasCommand = true;
             } else {
                 LoggerUtil.INSTANCE.warning(TextFX.colorize("Unknown command: " + text, Color.RED));
             }
@@ -406,6 +410,12 @@ public enum Client {
     // end misc
 
     // Start Send*() methods
+    public void sendAwayAction() throws IOException {
+        Payload payload = new Payload();
+        payload.setPayloadType(PayloadType.AWAY);
+        sendToServer(payload);
+    }
+
     public void sendUseCard(Card card, int x, int y) throws IOException {
         if (card == null) {
             LoggerUtil.INSTANCE.warning(TextFX.colorize("Card is null, cannot send", Color.RED));
@@ -664,6 +674,10 @@ public enum Client {
             case PayloadType.POINTS:
                 processPoints(payload);
                 break;
+            case PayloadType.AWAY:
+            case PayloadType.SYNC_AWAY:
+                processAwayStatus(payload);
+                break;
             default:
                 LoggerUtil.INSTANCE.warning(TextFX.colorize("Unhandled payload type", Color.YELLOW));
                 break;
@@ -708,6 +722,36 @@ public enum Client {
     }
 
     // Start process*() methods
+    private void processAwayStatus(Payload payload) {
+        // Note: Using ReadyPayload since it's my only payload with just a boolean
+        // It'd be best to rename it to something generic or to subclass it for
+        // readability (even if the subclass adds nothing)
+        if (!(payload instanceof ReadyPayload)) {
+            error("Invalid payload subclass for processAwayStatus");
+            return;
+        }
+        ReadyPayload cp = (ReadyPayload) payload;
+        if (cp.getClientId() == Constants.DEFAULT_CLIENT_ID) {
+            // reset all
+            knownClients.values().forEach(c -> c.setAway(false));
+            passToUICallback(ITurnEvent.class, e -> e.onAwayStatusUpdate(Constants.DEFAULT_CLIENT_ID, false));
+        } else if (knownClients.containsKey(cp.getClientId())) {
+            boolean isAway = cp.isReady(); // isReady is just the boolean getter, assume it means isAway here
+            knownClients.get(cp.getClientId()).setAway(isAway);
+            passToUICallback(
+                    ITurnEvent.class,
+                    e -> e.onAwayStatusUpdate(cp.getClientId(), isAway));
+            // updated Game Events View if not a quiet sync
+            if (payload.getPayloadType() != PayloadType.SYNC_AWAY) {
+                clientSideGameEvent(
+                        String.format("%s is now %s", getDisplayNameFromId(cp.getClientId()),
+                                isAway ? "away" : "back"));
+            }
+        } else {
+            LoggerUtil.INSTANCE.warning(String.format("Unknown client id %s for away status update", cp.getClientId()));
+        }
+    }
+
     private void processPoints(Payload payload) {
         if (!(payload instanceof PointsPayload)) {
             error("Invalid payload subclass for processCardAdd");

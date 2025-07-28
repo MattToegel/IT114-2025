@@ -32,4 +32,6 @@ public enum PayloadType {
        CARDS_REMOVE, // used to sync card removals
        TIME, // syncs current time of various timers
        POINTS, // syncs points data
+       AWAY, // used to toggle away status
+       SYNC_AWAY, // quiet version of AWAY, used to sync existing away status
 }

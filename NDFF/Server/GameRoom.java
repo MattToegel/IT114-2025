@@ -15,6 +15,7 @@ import NDFF.Common.Phase;
 import NDFF.Common.TimedEvent;
 import NDFF.Common.TimerType;
 import NDFF.Common.TextFX.Color;
+import NDFF.Exceptions.IsAwayException;
 import NDFF.Exceptions.MissingCurrentPlayerException;
 import NDFF.Exceptions.NotPlayersTurnException;
 import NDFF.Exceptions.NotReadyException;
@@ -47,6 +48,7 @@ public class GameRoom extends BaseGameRoom {
         // sync only what's necessary for the specific phase
         // if you blindly sync everything, you'll get visual artifacts/discrepancies
         syncReadyStatus(sp);
+        syncAwayStatus(sp);
         if (currentPhase != Phase.READY) {
             syncTurnStatus(sp); // turn/ready use the same visual process so ensure turn status is only called
                                 // outside of ready phase
@@ -169,6 +171,14 @@ public class GameRoom extends BaseGameRoom {
         resetTurnTimer();
         try {
             ServerThread currentPlayer = getNextPlayer();
+            // handle away status
+            if (currentPlayer.isAway()) {
+                sendGameEvent(String.format("%s is currently away and is getting skipped",
+                        currentPlayer.getDisplayName()));
+
+                onTurnEnd(); // skip the turn
+                return;
+            }
             // relay(null, String.format("It's %s's turn", currentPlayer.getDisplayName()));
             sendGameEvent(String.format("It's %s's turn", currentPlayer.getDisplayName()));
         } catch (MissingCurrentPlayerException | PlayerNotFoundException e) {
@@ -260,6 +270,30 @@ public class GameRoom extends BaseGameRoom {
     // end lifecycle methods
 
     // send/sync data to ServerThread(s)
+
+    private void syncAwayStatus(ServerThread incomingClient) {
+        clientsInRoom.values().forEach(serverUser -> {
+            if (serverUser.getClientId() != incomingClient.getClientId()) {
+                boolean failedToSync = !incomingClient.sendAwayStatus(serverUser.getClientId(),
+                        serverUser.isAway(), true);
+                if (failedToSync) {
+                    LoggerUtil.INSTANCE.warning(
+                            String.format("Removing disconnected %s from list", serverUser.getDisplayName()));
+                    disconnect(serverUser);
+                }
+            }
+        });
+    }
+
+    private void sendAwayStatus(ServerThread sp) {
+        clientsInRoom.values().removeIf(spInRoom -> {
+            boolean failedToSend = !spInRoom.sendAwayStatus(sp.getClientId(), sp.isAway(), false);
+            if (failedToSend) {
+                removeClient(spInRoom);
+            }
+            return failedToSend;
+        });
+    }
 
     private void syncPlayerPoints(ServerThread incomingClient) {
         clientsInRoom.values().forEach(serverUser -> {
@@ -420,6 +454,12 @@ public class GameRoom extends BaseGameRoom {
     }
 
     // start check methods
+    private void checkIsAway(ServerThread currentUser) throws IsAwayException {
+        if (currentUser.isAway()) {
+            throw new IsAwayException("You are currently away and cannot take actions");
+        }
+    }
+
     private void checkCurrentPlayer(long clientId) throws NotPlayersTurnException {
         if (currentTurnClientId != clientId) {
             throw new NotPlayersTurnException("You are not the current player");
@@ -440,6 +480,21 @@ public class GameRoom extends BaseGameRoom {
     // end check methods
 
     // receive data from ServerThread (GameRoom specific)
+    protected void handleAwayAction(ServerThread currentUser) {
+        try {
+            checkPlayerInRoom(currentUser);
+            // anyone can be away whenever so there are less required "checks" here
+            // toggle away status
+            currentUser.setAway(!currentUser.isAway());
+            sendAwayStatus(currentUser);
+        } catch (PlayerNotFoundException e) {
+            currentUser.sendGameEvent("You must be in a GameRoom to do the away action");
+            LoggerUtil.INSTANCE.severe("handleAwayAction exception", e);
+        } catch (Exception e) {
+            LoggerUtil.INSTANCE.severe("handleAwayAction exception", e);
+        }
+    }
+
     protected void handleUseCard(ServerThread currentUser, int x, int y, List<Card> cards) {
         try {
             checkPlayerInRoom(currentUser);
@@ -447,6 +502,7 @@ public class GameRoom extends BaseGameRoom {
             checkCurrentPlayer(currentUser.getClientId());
             checkIsReady(currentUser);
             checkTookTurn(currentUser);
+            checkIsAway(currentUser);
 
             // server-side turn control (in my case, using a card isn't the end of a turn)
             // currentUser.setTookTurn(true);
@@ -541,6 +597,7 @@ public class GameRoom extends BaseGameRoom {
             LoggerUtil.INSTANCE.severe("handleUseCard exception", e);
         } catch (NotReadyException e) {
             // The check method already informs the currentUser
+            currentUser.sendGameEvent("Spectators cannot use cards");
             LoggerUtil.INSTANCE.severe("handleUseCard exception", e);
         } catch (PlayerNotFoundException e) {
             currentUser.sendGameEvent("You must be in a GameRoom to do the card action");
@@ -549,6 +606,9 @@ public class GameRoom extends BaseGameRoom {
             currentUser.sendGameEvent(
                     "You can only use cards during the IN_PROGRESS phase");
             LoggerUtil.INSTANCE.severe("handleUseCard exception", e);
+        } catch (IsAwayException e) {
+            currentUser.sendGameEvent("You are currently away and cannot take actions");
+            LoggerUtil.INSTANCE.severe("handleFishAction exception", e);
         } catch (Exception e) {
             LoggerUtil.INSTANCE.severe("handleUseCard exception", e);
         }
@@ -562,6 +622,7 @@ public class GameRoom extends BaseGameRoom {
             checkCurrentPlayer(currentUser.getClientId());
             checkIsReady(currentUser);
             checkTookTurn(currentUser);
+            checkIsAway(currentUser);
             checkCoordinateBounds(x, y);
             // server-side turn control
             currentUser.setTookTurn(true);
@@ -612,6 +673,7 @@ public class GameRoom extends BaseGameRoom {
             LoggerUtil.INSTANCE.severe("handleFishAction exception", e);
         } catch (NotReadyException e) {
             // The check method already informs the currentUser
+            currentUser.sendGameEvent("Spectators cannot fish");
             LoggerUtil.INSTANCE.severe("handleFishAction exception", e);
         } catch (PlayerNotFoundException e) {
             currentUser.sendGameEvent("You must be in a GameRoom to do the fishing action");
@@ -619,6 +681,9 @@ public class GameRoom extends BaseGameRoom {
         } catch (PhaseMismatchException e) {
             currentUser.sendGameEvent(
                     "You can only fish during the IN_PROGRESS phase");
+            LoggerUtil.INSTANCE.severe("handleFishAction exception", e);
+        } catch (IsAwayException e) {
+            currentUser.sendGameEvent("You are currently away and cannot take actions");
             LoggerUtil.INSTANCE.severe("handleFishAction exception", e);
         } catch (Exception e) {
             LoggerUtil.INSTANCE.severe("handleFishAction exception", e);
@@ -632,6 +697,7 @@ public class GameRoom extends BaseGameRoom {
      * @param exampleText (arbitrary text from the client, can be used for
      *                    additional actions or information)
      */
+    @Deprecated
     protected void handleTurnAction(ServerThread currentUser, String exampleText) {
         // check if the client is in the room
         try {

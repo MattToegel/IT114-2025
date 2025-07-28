@@ -9,6 +9,7 @@ public class User {
     private String clientName;
     private boolean isReady = false;
     private boolean tookTurn = false;
+    private boolean isAway = false;
     private ConcurrentHashMap<FishType, Integer> fishQuantities = new ConcurrentHashMap<>();
     private ConcurrentHashMap<String, Card> cards = new ConcurrentHashMap<>();
 
@@ -146,6 +147,7 @@ public class User {
         this.tookTurn = false;
         this.resetFish();
         this.clearCards();
+        this.isAway = false;
     }
 
     /**
@@ -160,5 +162,13 @@ public class User {
      */
     public void setTookTurn(boolean tookTurn) {
         this.tookTurn = tookTurn;
+    }
+
+    public boolean isAway() {
+        return isAway;
+    }
+
+    public void setAway(boolean isAway) {
+        this.isAway = isAway;
     }
 }

@@ -11,9 +11,6 @@ import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.border.LineBorder;
 
-import NDFF.Common.LoggerUtil;
-import NDFF.Common.TextFX;
-
 public class CellUI extends JPanel {
     private int fishCount = -1; // -1 indicates unknown fish count
     private Color highlightColor = null;
@@ -49,18 +46,24 @@ public class CellUI extends JPanel {
 
     public void setHighlight(Color color) {
         this.highlightColor = color;
-        LoggerUtil.INSTANCE.info(TextFX
-                .colorize("CellUI setHighlight: highlightColor=" + color + ", fishCount=" + fishCount,
-                        TextFX.Color.RED));
+        /*
+         * LoggerUtil.INSTANCE.info(TextFX
+         * .colorize("CellUI setHighlight: highlightColor=" + color + ", fishCount=" +
+         * fishCount,
+         * TextFX.Color.RED));
+         */
         refresh();
     }
 
     private void refresh() {
         setEnabled(fishCount > 0 || fishCount == -1); // -1 indicates "unknown", but still clickable
         // log highlight color
-        LoggerUtil.INSTANCE.info(TextFX
-                .colorize("CellUI refresh: highlightColor=" + highlightColor + ", fishCount=" + fishCount,
-                        TextFX.Color.RED));
+        /*
+         * LoggerUtil.INSTANCE.info(TextFX
+         * .colorize("CellUI refresh: highlightColor=" + highlightColor + ", fishCount="
+         * + fishCount,
+         * TextFX.Color.RED));
+         */
         if (highlightColor != null) {
             setBackground(highlightColor);
         } else {
