@@ -18,7 +18,7 @@ public class Problem4 extends BaseClass {
         // Challenge 2: Convert text to Title Case
         // Challenge 3: Trim leading/trailing spaces and remove duplicate spaces
         // Result 1-3: Assign final phrase to `placeholderForModifiedPhrase`
-        // Challenge 4 (extra credit): Extract middle 3 characters (beginning starts at middle of phrase excluding the first and last characters),
+        // Challenge 4 (extra credit): Extract up to middle 3 characters when possible (beginning starts at middle of phrase excluding the first and last characters),
         // assign to 'placeholderForMiddleCharacters'
         
         // if not enough characters assign "Not enough characters"
