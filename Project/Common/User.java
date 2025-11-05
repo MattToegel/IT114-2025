@@ -4,7 +4,6 @@ public class User {
     private long clientId = Constants.DEFAULT_CLIENT_ID;
     private String clientName;
     private boolean isReady = false;
-    private boolean tookTurn = false;
 
     /**
      * @return the clientId
@@ -50,20 +49,5 @@ public class User {
         this.clientId = Constants.DEFAULT_CLIENT_ID;
         this.clientName = null;
         this.isReady = false;
-        this.tookTurn = false;
-    }
-
-    /**
-     * @return the tookTurn
-     */
-    public boolean didTakeTurn() {
-        return tookTurn;
-    }
-
-    /**
-     * @param tookTurn the tookTurn to set
-     */
-    public void setTookTurn(boolean tookTurn) {
-        this.tookTurn = tookTurn;
     }
 }

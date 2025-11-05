@@ -21,6 +21,7 @@ import Project.Common.TextFX;
  */
 public class ServerThread extends BaseServerThread {
     private Consumer<ServerThread> onInitializationComplete; // callback to inform when this object is ready
+
     /**
      * A wrapper method so we don't need to keep typing out the long/complex sysout
      * line inside
@@ -54,26 +55,6 @@ public class ServerThread extends BaseServerThread {
     }
 
     // Start Send*() Methods
-    public boolean sendResetTurnStatus() {
-        ReadyPayload rp = new ReadyPayload();
-        rp.setPayloadType(PayloadType.RESET_TURN);
-        return sendToClient(rp);
-    }
-
-    public boolean sendTurnStatus(long clientId, boolean didTakeTurn) {
-        return sendTurnStatus(clientId, didTakeTurn, false);
-    }
-
-    public boolean sendTurnStatus(long clientId, boolean didTakeTurn, boolean quiet) {
-        // NOTE for now using ReadyPayload as it has the necessary properties
-        // An actual turn may include other data for your project
-        ReadyPayload rp = new ReadyPayload();
-        rp.setPayloadType(quiet ? PayloadType.SYNC_TURN : PayloadType.TURN);
-        rp.setClientId(clientId);
-        rp.setReady(didTakeTurn);
-        return sendToClient(rp);
-    }
-
     public boolean sendCurrentPhase(Phase phase) {
         Payload p = new Payload();
         p.setPayloadType(PayloadType.PHASE);
@@ -237,15 +218,7 @@ public class ServerThread extends BaseServerThread {
                     sendMessage(Constants.DEFAULT_CLIENT_ID, "You must be in a GameRoom to do the ready check");
                 }
                 break;
-            case TURN:
-                // no data needed as the intent will be used as the trigger
-                try {
-                    // cast to GameRoom as the subclass will handle all Game logic
-                    ((GameRoom) currentRoom).handleTurnAction(this, incoming.getMessage());
-                } catch (Exception e) {
-                    sendMessage(Constants.DEFAULT_CLIENT_ID, "You must be in a GameRoom to do a turn");
-                }
-                break;
+
             default:
                 LoggerUtil.INSTANCE.warning(TextFX.colorize("Unknown payload type received", Color.RED));
                 break;
@@ -259,14 +232,6 @@ public class ServerThread extends BaseServerThread {
 
     protected void setReady(boolean isReady) {
         this.user.setReady(isReady);
-    }
-
-    protected boolean didTakeTurn() {
-        return this.user.didTakeTurn();
-    }
-
-    protected void setTookTurn(boolean tookTurn) {
-        this.user.setTookTurn(tookTurn);
     }
 
     @Override

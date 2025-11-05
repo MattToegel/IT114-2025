@@ -162,14 +162,14 @@ public enum Client {
             } else if (text.equalsIgnoreCase(Command.LIST_USERS.command)) {
                 String message = TextFX.colorize("Known clients:\n", Color.CYAN);
                 LoggerUtil.INSTANCE.info(TextFX.colorize("Known clients:", Color.CYAN));
-                message += String.join("\n", knownClients.values().stream()
-                        
-                        .map(c -> String.format("%s %s %s %s",
-                                c.getDisplayName(),
-                                c.getClientId() == myUser.getClientId() ? " (you)" : "",
-                                c.isReady() ? "[x]" : "[ ]",
-                                c.didTakeTurn() ? "[T]" : "[ ]"))
-                        .toList());
+                message += String.join("\n",
+                        knownClients.values().stream()
+                                .map(c -> String.format("%s %s %s",
+                                        c.getDisplayName(),
+                                        c.getClientId() == myUser.getClientId() ? " (you)" : "",
+                                        c.isReady() ? "[x]" : "[ ]"))
+                                .toList());
+
                 LoggerUtil.INSTANCE.info(message);
                 wasCommand = true;
             } else if (Command.QUIT.command.equalsIgnoreCase(text)) {
@@ -213,26 +213,12 @@ public enum Client {
             } else if (text.equalsIgnoreCase(Command.READY.command)) {
                 sendReady();
                 wasCommand = true;
-            } else if (text.startsWith(Command.EXAMPLE_TURN.command)) {
-                text = text.replace(Command.EXAMPLE_TURN.command, "").trim();
-
-                sendDoTurn(text);
-                wasCommand = true;
             }
         }
         return wasCommand;
     }
 
     // Start Send*() methods
-    private void sendDoTurn(String text) throws IOException {
-        // NOTE for now using ReadyPayload as it has the necessary properties
-        // An actual turn may include other data for your project
-        ReadyPayload rp = new ReadyPayload();
-        rp.setPayloadType(PayloadType.TURN);
-        rp.setReady(true); // <- technically not needed as we'll use the payload type as a trigger
-        rp.setMessage(text);
-        sendToServer(rp);
-    }
 
     /**
      * Sends the client's intent to be ready.
@@ -423,14 +409,7 @@ public enum Client {
             case PayloadType.PHASE:
                 processPhase(payload);
                 break;
-            case PayloadType.TURN:
-            case PayloadType.SYNC_TURN:
-                processTurn(payload);
-                break;
-            case PayloadType.RESET_TURN:
-                // note no data necessary as this is just a trigger
-                processResetTurn();
-                break;
+
             default:
                 LoggerUtil.INSTANCE.warning(TextFX.colorize("Unhandled payload type", Color.YELLOW));
                 break;
@@ -439,32 +418,6 @@ public enum Client {
     }
 
     // Start process*() methods
-    private void processResetTurn() {
-        knownClients.values().forEach(cp -> cp.setTookTurn(false));
-        System.out.println("Ready status turn for everyone");
-    }
-
-    private void processTurn(Payload payload) {
-        // Note: For now assuming ReadyPayload (this may be changed later)
-        if (!(payload instanceof ReadyPayload)) {
-            error("Invalid payload subclass for processTurn");
-            return;
-        }
-        ReadyPayload rp = (ReadyPayload) payload;
-        if (!knownClients.containsKey(rp.getClientId())) {
-            LoggerUtil.INSTANCE.severe(String.format("Received turn status for client id %s who is not known",
-                    rp.getClientId()));
-            return;
-        }
-        User cp = knownClients.get(rp.getClientId());
-        cp.setTookTurn(rp.isReady());
-        if (payload.getPayloadType() != PayloadType.SYNC_TURN) {
-            String message = String.format("%s %s their turn", cp.getDisplayName(),
-                    cp.didTakeTurn() ? "took" : "reset");
-            LoggerUtil.INSTANCE.info(message);
-        }
-
-    }
 
     private void processPhase(Payload payload) {
         currentPhase = Enum.valueOf(Phase.class, payload.getMessage());
