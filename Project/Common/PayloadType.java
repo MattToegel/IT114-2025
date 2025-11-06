@@ -20,5 +20,4 @@ public enum PayloadType {
                  // (saves network requests)
     PHASE, // syncs current phase of session (used as a switch to only allow certain logic
            // to execute)
-    RESET_TURN, // trigger to tell client to reset their local list turn status
 }
