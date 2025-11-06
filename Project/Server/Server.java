@@ -124,7 +124,7 @@ public enum Server {
         if (rooms.containsKey(nameCheck)) {
             throw new DuplicateRoomException(String.format("Room %s already exists", name));
         }
-        Room room = new Room(name);
+        Room room = Room.LOBBY.equalsIgnoreCase(nameCheck) ? new Room(name) : new GameRoom(name);
         rooms.put(nameCheck, room);
         info(String.format("Created new Room %s", name));
     }

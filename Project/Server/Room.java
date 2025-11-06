@@ -13,7 +13,7 @@ import Project.Exceptions.RoomNotFoundException;
 public class Room implements AutoCloseable {
     private final String name;// unique name of the Room
     private volatile boolean isRunning = false;
-    private final ConcurrentHashMap<Long, ServerThread> clientsInRoom = new ConcurrentHashMap<Long, ServerThread>();
+    protected final ConcurrentHashMap<Long, ServerThread> clientsInRoom = new ConcurrentHashMap<Long, ServerThread>();
 
     public final static String LOBBY = "lobby";
 
@@ -29,6 +29,10 @@ public class Room implements AutoCloseable {
 
     public String getName() {
         return this.name;
+    }
+
+    protected boolean isRunning() {
+        return isRunning;
     }
 
     protected synchronized void addClient(ServerThread client) {
@@ -120,7 +124,7 @@ public class Room implements AutoCloseable {
         }
 
         // Note: any desired changes to the message must be done before this line
-        String senderString = sender == null ? String.format("Room[%s]", getName())
+        final String senderString = sender == null ? String.format("Room[%s]", getName())
                 : sender.getDisplayName();
         final long senderId = sender == null ? Constants.DEFAULT_CLIENT_ID : sender.getClientId();
         // Note: formattedMessage must be final (or effectively final) since outside
@@ -152,7 +156,7 @@ public class Room implements AutoCloseable {
      * 
      * @param client
      */
-    private synchronized void disconnect(ServerThread client) {
+    protected synchronized void disconnect(ServerThread client) {
         if (!isRunning) { // block action if Room isn't running
             return;
         }
