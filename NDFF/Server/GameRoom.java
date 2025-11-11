@@ -203,7 +203,6 @@ public class GameRoom extends BaseGameRoom {
     @Override
     protected void onSessionEnd() {
         LoggerUtil.INSTANCE.info("onSessionEnd() start");
-        turnOrder.clear();
         currentTurnClientId = Constants.DEFAULT_CLIENT_ID;
         // find winner with highest getPoints();
         ServerThread winner = turnOrder.stream()
@@ -215,6 +214,7 @@ public class GameRoom extends BaseGameRoom {
         } else {
             relay(null, "Session ended! No winner could be determined.");
         }
+        turnOrder.clear();
         grid.reset();
         // resetReadyStatus();
         // resetTurnStatus();
