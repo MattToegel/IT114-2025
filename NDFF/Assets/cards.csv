@@ -1,0 +1,9 @@
+# id,card_type,value,descript,quantity
+1,CATCH_MULTIPLIER,1.5,Increase your next catch by 50%,3
+2,CATCH_MULTIPLIER,2.0,Double your next catch,2
+5,LONG_TERM_PROBABILITY,0.10,Increase long-term probability of a cell by 0.10,2
+6,LONG_TERM_PROBABILITY,-0.10,Decrease long-term probability of a cell by 0.10,2
+7,TEMPORARY_PROBABILITY,0.25,Increase temporary probability of a cell by 0.25 for your next attempt,3
+8,TEMPORARY_PROBABILITY,-0.25,Decrease temporary probability of a cell by 0.25 for your next attempt,2
+9,FISHING_ATTEMPTS,1,Gain 1 extra fishing attempt this turn,3
+10,FISHING_ATTEMPTS,2,Gain 2 extra fishing attempts this turn,1
