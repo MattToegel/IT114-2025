@@ -12,7 +12,7 @@ mkdir -p "$project/build"
 
 # Create Server JAR (include Server and Common packages)
 jar cfe "$project/build/${project}_Server.jar" "${project}.Server.Server" \
-  $project/Server/*.class $project/Common/*.class $project/Exceptions/*.class
+  $project/Server/*.class $(find "$project/Common" -name "*.class") $project/Exceptions/*.class
 
 # Create Client JAR (include Client and Common packages)
 jar cfe "$project/build/${project}_Client.jar" "${project}.Client.ClientUI" \
