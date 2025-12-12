@@ -1,5 +1,13 @@
 package Project.Client.Views;
 
+import Project.Client.CardViewName;
+import Project.Client.Client;
+import Project.Client.Interfaces.ICardControls;
+import Project.Client.Interfaces.IConnectionEvents;
+import Project.Client.Interfaces.IMessageEvents;
+import Project.Client.Interfaces.IRoomEvents;
+import Project.Common.Constants;
+import Project.Common.LoggerUtil;
 import java.awt.BorderLayout;
 import java.awt.Color;
 import java.awt.Component;
@@ -11,7 +19,6 @@ import java.awt.event.ComponentAdapter;
 import java.awt.event.ComponentEvent;
 import java.io.IOException;
 import java.util.List;
-
 import javax.swing.BorderFactory;
 import javax.swing.Box;
 import javax.swing.BoxLayout;
@@ -25,15 +32,6 @@ import javax.swing.JTextField;
 import javax.swing.ScrollPaneConstants;
 import javax.swing.SwingUtilities;
 import javax.swing.border.EmptyBorder;
-
-import Project.Common.Constants;
-import Project.Client.CardViewName;
-import Project.Client.Client;
-import Project.Client.Interfaces.ICardControls;
-import Project.Client.Interfaces.IConnectionEvents;
-import Project.Client.Interfaces.IMessageEvents;
-import Project.Client.Interfaces.IRoomEvents;
-import Project.Common.LoggerUtil;
 
 /**
  * ChatView represents the main chat interface where messages can be sent and
@@ -89,8 +87,10 @@ public class ChatView extends JPanel implements IMessageEvents, IConnectionEvent
         JTextField textValue = new JTextField();
         input.add(textValue);
         JButton button = new JButton("Send");
-        textValue.addActionListener(_ -> button.doClick()); // Enter key submits
-        button.addActionListener(_ -> {
+        textValue.addActionListener(evt -> button.doClick()); // Enter key submits
+
+        // 🔧 FIXED HERE: changed lambda param from `e` to `evt`
+        button.addActionListener(evt -> {
             SwingUtilities.invokeLater(() -> {
                 try {
                     String text = textValue.getText().trim();
@@ -161,8 +161,6 @@ public class ChatView extends JPanel implements IMessageEvents, IConnectionEvent
         int scrollBarWidth = parentScrollPane.getVerticalScrollBar().getPreferredSize().width;
         int width = chatArea.getParent().getWidth() - scrollBarWidth - 10;
 
-        // LoggerUtil.INSTANCE.fine(String.format("Sizes: %s\n%s\n%s", getSize().width,
-        // chatArea.getWidth(), chatArea.getParent().getWidth()));
         for (Component comp : chatArea.getComponents()) {
             if (comp instanceof JEditorPane) {
                 JEditorPane editorPane = (JEditorPane) comp;

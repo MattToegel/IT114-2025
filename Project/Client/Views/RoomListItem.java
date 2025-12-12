@@ -29,7 +29,7 @@ public class RoomListItem extends JPanel {
 
         joinButton = new JButton("Join");
         joinButton.setToolTipText("Join this room");
-        joinButton.addActionListener(_ -> SwingUtilities.invokeLater(() -> onJoin.accept(roomName.getText())));
+        joinButton.addActionListener(e -> SwingUtilities.invokeLater(() -> onJoin.accept(roomName.getText())));
 
         add(roomName);
         add(Box.createHorizontalGlue()); // Fills up horizontal space

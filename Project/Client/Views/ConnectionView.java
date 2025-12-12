@@ -1,5 +1,7 @@
 package Project.Client.Views;
 
+import Project.Client.CardViewName;
+import Project.Client.Interfaces.ICardControls;
 import java.awt.BorderLayout;
 import javax.swing.Box;
 import javax.swing.BoxLayout;
@@ -8,9 +10,6 @@ import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JTextField;
 import javax.swing.border.EmptyBorder;
-
-import Project.Client.CardViewName;
-import Project.Client.Interfaces.ICardControls;
 
 public class ConnectionView extends JPanel {
     // Stores the host and port entered by the user
@@ -55,7 +54,7 @@ public class ConnectionView extends JPanel {
         // Next button for proceeding to the next view
         JButton nextButton = new JButton("Next");
         nextButton.setAlignmentX(JButton.CENTER_ALIGNMENT);
-        nextButton.addActionListener(_ -> onNext(controls));
+        nextButton.addActionListener(e -> onNext(controls));
         content.add(Box.createVerticalStrut(10));
         content.add(nextButton);
 

@@ -1,5 +1,8 @@
 package Project.Client.Views;
 
+import Project.Client.CardViewName;
+import Project.Client.Interfaces.ICardControls;
+import Project.Common.LoggerUtil;
 import java.awt.BorderLayout;
 import java.awt.Dimension;
 import javax.swing.Box;
@@ -9,9 +12,6 @@ import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JTextField;
 import javax.swing.border.EmptyBorder;
-import Project.Client.CardViewName;
-import Project.Client.Interfaces.ICardControls;
-import Project.Common.LoggerUtil;
 
 // UserDetailsView lets the user enter their username before connecting.
 public class UserDetailsView extends JPanel {
@@ -46,9 +46,9 @@ public class UserDetailsView extends JPanel {
 
         // Previous and Connect buttons for navigation
         JButton previousButton = new JButton("Previous");
-        previousButton.addActionListener(_ -> controls.previousView());
+        previousButton.addActionListener(e -> controls.previousView());
         JButton connectButton = new JButton("Connect");
-        connectButton.addActionListener(_ -> onConnect(controls));
+        connectButton.addActionListener(e -> onConnect(controls));
 
         JPanel buttons = new JPanel();
         buttons.add(previousButton);

@@ -1,5 +1,11 @@
 package Project.Client.Views;
 
+import Project.Client.CardViewName;
+import Project.Client.Client;
+import Project.Client.Interfaces.ICardControls;
+import Project.Client.Interfaces.IRoomEvents;
+import Project.Common.LoggerUtil;
+import Project.Common.RoomAction;
 import java.awt.BorderLayout;
 import java.awt.Color;
 import java.awt.Component;
@@ -7,7 +13,6 @@ import java.awt.Dimension;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
-
 import javax.swing.BorderFactory;
 import javax.swing.Box;
 import javax.swing.BoxLayout;
@@ -20,13 +25,6 @@ import javax.swing.ScrollPaneConstants;
 import javax.swing.SwingUtilities;
 import javax.swing.border.EmptyBorder;
 import javax.swing.border.LineBorder;
-
-import Project.Common.RoomAction;
-import Project.Client.CardViewName;
-import Project.Client.Client;
-import Project.Client.Interfaces.ICardControls;
-import Project.Client.Interfaces.IRoomEvents;
-import Project.Common.LoggerUtil;
 
 /**
  * RoomsView class represents the UI for managing chat rooms.
@@ -54,7 +52,7 @@ public class RoomsView extends JPanel implements IRoomEvents {
         scroll.setBorder(BorderFactory.createEmptyBorder());
 
         JButton back = new JButton("Close");
-        back.addActionListener(_ -> controls.previousView());
+        back.addActionListener(evt -> controls.previousView());
 
         JPanel search = new JPanel();
         search.setLayout(new BoxLayout(search, BoxLayout.Y_AXIS));
@@ -70,7 +68,7 @@ public class RoomsView extends JPanel implements IRoomEvents {
         messageContainer.setBorder(new EmptyBorder(5, 0, 0, 0));
 
         // Search button action
-        searchButton.addActionListener(_ -> {
+        searchButton.addActionListener(evt -> {
             SwingUtilities.invokeLater(() -> {
                 try {
                     String query = searchValue.getText().trim();
@@ -89,7 +87,7 @@ public class RoomsView extends JPanel implements IRoomEvents {
         });
 
         JButton createButton = new JButton("Create");
-        createButton.addActionListener(_ -> {
+        createButton.addActionListener(evt -> {
             SwingUtilities.invokeLater(() -> {
                 try {
                     String query = searchValue.getText().trim();
@@ -107,7 +105,7 @@ public class RoomsView extends JPanel implements IRoomEvents {
         });
 
         JButton joinButton = new JButton("Join");
-        joinButton.addActionListener(_ -> {
+        joinButton.addActionListener(evt -> {
             SwingUtilities.invokeLater(() -> {
                 try {
                     String query = searchValue.getText().trim();
